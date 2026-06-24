@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浅析 Cloudflare 回源证书配置 | 林一的技术笔记</title>
+    <meta name="description" content="详解 Cloudflare 回源证书的配置流程，对比 Full 与 Full Strict 模式的差异">
+    <meta name="author" content="林一">
+    <meta property="og:title" content="浅析 Cloudflare 回源证书配置">
+    <meta property="og:description" content="详解 Cloudflare 回源证书的配置流程">
+    <meta property="og:type" content="article">
+    <meta property="article:published_time" content="2026-06-15">
+    <meta property="article:section" content="技术">
+    <meta property="article:tag" content="Cloudflare">
+    <meta property="article:tag" content="SSL">
+    <link rel="canonical" href="/posts/cloudflare-origin/">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container">
+            <a href="/" class="site-title">林一的技术笔记</a>
+            <nav class="site-nav">
+                <a href="/">首页</a>
+                <a href="/about/">关于</a>
+                <a href="/posts/">归档</a>
+                <a href="/categories/">分类</a>
+                <a href="/tags/">标签</a>
+                <a href="/links/">友链</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <article>
+                <div class="article-header">
+                    <h1 class="article-title">浅析 Cloudflare 回源证书配置</h1>
+                    <div class="article-meta">
+                        <time datetime="2026-06-15">2026-06-15</time>
+                        <span>·</span>
+                        <span>约 6 分钟</span>
+                        <span>·</span>
+                        <span>分类：<a href="/categories/#技术">技术</a></span>
+                    </div>
+                </div>
+
+                <div class="article-content">
+                    <p>当你的网站通过 Cloudflare CDN 加速时，用户到 Cloudflare 的连接是加密的（HTTPS），但 Cloudflare 到你源站的连接是否加密，取决于你的 SSL/TLS 模式设置。本文重点介绍 <strong>Full (Strict)</strong> 模式下的回源证书配置。</p>
+
+                    <h2>Cloudflare SSL/TLS 模式对比</h2>
+
+                    <p>Cloudflare 提供了三种 SSL 模式：</p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>模式</th>
+                                <th>用户→CF</th>
+                                <th>CF→源站</th>
+                                <th>源站证书要求</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Flexible</td>
+                                <td>HTTPS</td>
+                                <td>HTTP</td>
+                                <td>无</td>
+                            </tr>
+                            <tr>
+                                <td>Full</td>
+                                <td>HTTPS</td>
+                                <td>HTTPS</td>
+                                <td>有证书即可（自签名也行）</td>
+                            </tr>
+                            <tr>
+                                <td>Full (Strict)</td>
+                                <td>HTTPS</td>
+                                <td>HTTPS</td>
+                                <td>必须是受信任的证书</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>强烈建议使用 Full (Strict) 模式</strong>，这是唯一能保证端到端加密的选项。Flexible 模式下，CF 到源站是明文传输，存在中间人攻击风险。</p>
+
+                    <h2>回源证书方案选择</h2>
+
+                    <p>在 Full (Strict) 模式下，你有两种证书选择：</p>
+
+                    <ol>
+                        <li><strong>Cloudflare Origin CA Certificate</strong> — Cloudflare 免费签发，有效期最长 15 年，仅被 Cloudflare 信任</li>
+                        <li><strong>Let's Encrypt 证书</strong> — 公开信任，有效期 90 天，需自动续签</li>
+                    </ol>
+
+                    <p>如果你的源站只通过 Cloudflare 访问（不直接暴露），推荐使用 Origin CA Certificate，配置简单且有效期长。</p>
+
+                    <h2>配置步骤</h2>
+
+                    <h3>1. 签发 Origin CA 证书</h3>
+
+                    <p>登录 Cloudflare 控制台，进入 <code>SSL/TLS → Origin Server</code>，点击 <code>Create Certificate</code>。选择以下配置：</p>
+
+                    <ul>
+                        <li>私钥类型：RSA (2048)</li>
+                        <li>域名：默认即可（包含泛域名）</li>
+                        <li>有效期：15 年</li>
+                    </ul>
+
+                    <p>点击创建后，Cloudflare 会显示证书和私钥。<strong>请务必保存私钥，关闭页面后无法再次查看。</strong></p>
+
+                    <h3>2. 在源站配置证书</h3>
+
+                    <p>将证书保存为 <code>/etc/ssl/certs/cloudflare-origin.pem</code>，私钥保存为 <code>/etc/ssl/private/cloudflare-origin.key</code>。</p>
+
+                    <p>Nginx 配置示例：</p>
+
+                    <pre><code>server {
+    listen 443 ssl http2;
+    server_name blog.example.com;
+
+    ssl_certificate     /etc/ssl/certs/cloudflare-origin.pem;
+    ssl_certificate_key /etc/ssl/private/cloudflare-origin.key;
+
+    root /var/www/blog;
+    index index.html;
+}</code></pre>
+
+                    <h3>3. 设置 SSL 模式为 Full (Strict)</h3>
+
+                    <p>在 Cloudflare 控制台的 <code>SSL/TLS → Overview</code> 中，将模式切换为 <code>Full (Strict)</code>。</p>
+
+                    <h2>验证配置</h2>
+
+                    <p>配置完成后，可以通过以下方式验证：</p>
+
+                    <ol>
+                        <li>在浏览器中访问你的站点，确认地址栏显示 HTTPS</li>
+                        <li>查看 Cloudflare 控制台的 <code>SSL/TLS → Origin Server</code>，确认证书状态为 Active</li>
+                        <li>使用 <code>curl -v https://your-domain.com</code> 检查响应头中的 <code>cf-ray</code> 字段</li>
+                    </ol>
+
+                    <blockquote>
+                        <p>提示：如果你需要直接访问源站（绕过 Cloudflare），应该使用 Let's Encrypt 证书而非 Origin CA 证书，因为后者仅被 Cloudflare 信任。</p>
+                    </blockquote>
+
+                    <h2>常见问题</h2>
+
+                    <h3>ERR_TOO_MANY_REDIRECTS</h3>
+
+                    <p>这通常是因为 Cloudflare SSL 模式设为 Flexible，而源站又配置了 HTTP→HTTPS 跳转，导致无限重定向。解决方法是将 SSL 模式改为 Full 或 Full (Strict)。</p>
+
+                    <h3>525 SSL Handshake Failed</h3>
+
+                    <p>说明 Cloudflare 无法与源站完成 SSL 握手。检查：</p>
+
+                    <ul>
+                        <li>源站 443 端口是否开放</li>
+                        <li>证书和私钥是否匹配</li>
+                        <li>证书是否过期</li>
+                    </ul>
+
+                    <hr>
+
+                    <p>回源证书的配置并不复杂，但选择正确的模式和证书类型很重要。对于大多数场景，Full (Strict) + Origin CA Certificate 是最佳组合。</p>
+                </div>
+
+                <div class="post-card-tags" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border);">
+                    <a href="/tags/cloudflare/" class="tag">Cloudflare</a>
+                    <a href="/tags/ssl/" class="tag">SSL</a>
+                    <a href="/tags/nginx/" class="tag">Nginx</a>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>© 2024–2026 林一 · 自建小站 · 所有内容均为原创</p>
+            <p>Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> & <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a></p>
+        </div>
+    </footer>
+</body>
+</html>

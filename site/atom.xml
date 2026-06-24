@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>林一的技术笔记</title>
+  <subtitle>专注Go、Kubernetes、网络协议的实践笔记与分享</subtitle>
+  <link href="https://__DOMAIN__/" rel="alternate"/>
+  <link href="https://__DOMAIN__/atom.xml" rel="self"/>
+  <id>https://__DOMAIN__/</id>
+  <updated>2026-06-20T00:00:00+08:00</updated>
+  <author>
+    <name>林一</name>
+    <email>linyi@example.com</email>
+    <uri>https://github.com/linyi-dev</uri>
+  </author>
+  <generator uri="https://gohugo.io/" version="0.130.0">Hugo</generator>
+
+  <entry>
+    <title>在 VPS 上搭建 TLS 伪装站点的小记</title>
+    <link href="https://__DOMAIN__/posts/tls-camouflage/" rel="alternate"/>
+    <id>https://__DOMAIN__/posts/tls-camouflage/</id>
+    <published>2026-06-20T00:00:00+08:00</published>
+    <updated>2026-06-20T00:00:00+08:00</updated>
+    <summary>最近在研究 TLS 协议的 SNI 扩展机制时，发现通过合理配置 Caddy，可以让服务器在 TLS 握手阶段返回与域名匹配的合法证书。本文记录了使用 Caddy 自动签发 Let's Encrypt 证书并配置静态站点的完整过程。</summary>
+    <category term="技术"/>
+    <category term="TLS"/>
+    <category term="Caddy"/>
+    <category term="VPS"/>
+  </entry>
+
+  <entry>
+    <title>浅析 Cloudflare 回源证书配置</title>
+    <link href="https://__DOMAIN__/posts/cloudflare-origin/" rel="alternate"/>
+    <id>https://__DOMAIN__/posts/cloudflare-origin/</id>
+    <published>2026-06-15T00:00:00+08:00</published>
+    <updated>2026-06-15T00:00:00+08:00</updated>
+    <summary>Cloudflare 的回源证书是保障 CDN 到源站通信安全的重要机制。本文从证书签发、Nginx 配置到 Cloudflare 控制台设置，逐步演示完整配置流程。</summary>
+    <category term="技术"/>
+    <category term="Cloudflare"/>
+    <category term="SSL"/>
+    <category term="Nginx"/>
+  </entry>
+
+  <entry>
+    <title>Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</title>
+    <link href="https://__DOMAIN__/posts/hugo-vs-hexo/" rel="alternate"/>
+    <id>https://__DOMAIN__/posts/hugo-vs-hexo/</id>
+    <published>2026-06-10T00:00:00+08:00</published>
+    <updated>2026-06-10T00:00:00+08:00</updated>
+    <summary>从 Hexo 迁移到 Hugo 后，部署方案也需要同步更新。在对比了 Nginx、Caddy 和 Apache 后，我最终选择了 Caddy——自动 HTTPS、极简配置文件、Docker 一键部署。</summary>
+    <category term="技术"/>
+    <category term="Hugo"/>
+    <category term="Caddy"/>
+    <category term="Docker"/>
+  </entry>
+</feed>

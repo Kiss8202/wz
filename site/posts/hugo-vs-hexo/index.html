@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器 | 林一的技术笔记</title>
+    <meta name="description" content="从 Hexo 迁移到 Hugo 后的部署方案对比，以及为什么 Caddy 是个人博客服务器的理想选择">
+    <meta name="author" content="林一">
+    <meta property="og:title" content="Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器">
+    <meta property="og:description" content="从 Hexo 迁移到 Hugo 后的部署方案对比">
+    <meta property="og:type" content="article">
+    <meta property="article:published_time" content="2026-06-10">
+    <meta property="article:section" content="技术">
+    <meta property="article:tag" content="Hugo">
+    <meta property="article:tag" content="Caddy">
+    <link rel="canonical" href="/posts/hugo-vs-hexo/">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container">
+            <a href="/" class="site-title">林一的技术笔记</a>
+            <nav class="site-nav">
+                <a href="/">首页</a>
+                <a href="/about/">关于</a>
+                <a href="/posts/">归档</a>
+                <a href="/categories/">分类</a>
+                <a href="/tags/">标签</a>
+                <a href="/links/">友链</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <article>
+                <div class="article-header">
+                    <h1 class="article-title">Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</h1>
+                    <div class="article-meta">
+                        <time datetime="2026-06-10">2026-06-10</time>
+                        <span>·</span>
+                        <span>约 5 分钟</span>
+                        <span>·</span>
+                        <span>分类：<a href="/categories/#技术">技术</a></span>
+                    </div>
+                </div>
+
+                <div class="article-content">
+                    <p>这个博客之前是用 Hexo 搭建的，托管在 GitHub Pages 上。但随着文章增多，Hexo 的构建速度越来越慢，GitHub Pages 在国内的访问也不太稳定。经过一番调研，我决定迁移到 Hugo，并把部署方案从 GitHub Pages 换成了自建 Caddy 服务器。</p>
+
+                    <h2>Hugo vs Hexo</h2>
+
+                    <p>两者都是优秀的静态站点生成器，但有一些关键差异：</p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>特性</th>
+                                <th>Hexo</th>
+                                <th>Hugo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>语言</td>
+                                <td>Node.js</td>
+                                <td>Go</td>
+                            </tr>
+                            <tr>
+                                <td>构建速度</td>
+                                <td>较慢（100 篇约 10s）</td>
+                                <td>极快（100 篇约 0.5s）</td>
+                            </tr>
+                            <tr>
+                                <td>依赖管理</td>
+                                <td>需要 node_modules</td>
+                                <td>单二进制，无依赖</td>
+                            </tr>
+                            <tr>
+                                <td>主题生态</td>
+                                <td>丰富</td>
+                                <td>丰富</td>
+                            </tr>
+                            <tr>
+                                <td>模板引擎</td>
+                                <td>EJS / Pug / Nunjucks</td>
+                                <td>Go Template</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p>对我来说，Hugo 最大的优势是<strong>构建速度</strong>和<strong>零依赖</strong>。写完文章后 <code>hugo</code> 一敲，瞬间生成，不需要等待 Node.js 的依赖安装和编译。</p>
+
+                    <h2>为什么不用 GitHub Pages</h2>
+
+                    <p>GitHub Pages 虽然免费，但有几个限制：</p>
+
+                    <ul>
+                        <li>国内访问速度不稳定，经常超时</li>
+                        <li>不支持自定义 HTTPS（需要借助 Cloudflare 等 CDN）</li>
+                        <li>仓库必须是 public</li>
+                        <li>自定义域名配置繁琐</li>
+                    </ul>
+
+                    <p>自建服务器虽然需要花钱，但完全可控，而且配合 Caddy 可以实现自动 HTTPS。</p>
+
+                    <h2>为什么选择 Caddy</h2>
+
+                    <p>在自建服务器的方案中，我对比了三个主流 Web 服务器：</p>
+
+                    <h3>Nginx</h3>
+
+                    <p>老牌选手，性能强劲，配置灵活。但 HTTPS 需要配合 Certbot 手动管理证书，配置文件也比较冗长。对于个人博客来说，杀鸡用牛刀了。</p>
+
+                    <h3>Apache</h3>
+
+                    <p>功能全面，<code>.htaccess</code> 很方便。但同样需要手动管理证书，而且内存占用比 Nginx 高。对于小博客来说过于笨重。</p>
+
+                    <h3>Caddy</h3>
+
+                    <p>Caddy 是我用过最省心的 Web 服务器。核心优势：</p>
+
+                    <ul>
+                        <li><strong>自动 HTTPS</strong>：自动申请和续签 Let's Encrypt 证书</li>
+                        <li><strong>极简配置</strong>：Caddyfile 只有几行</li>
+                        <li><strong>HTTP/2 默认开启</strong>：无需额外配置</li>
+                        <li><strong>Docker 友好</strong>：官方 Alpine 镜像只有 40MB</li>
+                    </ul>
+
+                    <p>一个最简单的 Caddyfile：</p>
+
+                    <pre><code>blog.example.com {
+    root * /var/www/blog
+    file_server
+}</code></pre>
+
+                    <p>就这几行，Caddy 会自动处理 HTTPS、HTTP→HTTPS 跳转、HTTP/2 等所有事情。</p>
+
+                    <h2>Docker 部署方案</h2>
+
+                    <p>最终的部署方案非常简单：</p>
+
+                    <pre><code># 生成静态文件
+hugo --minify
+
+# Docker 启动 Caddy
+docker compose up -d</code></pre>
+
+                    <p>更新博客时，只需在 VPS 上 <code>git pull</code> 拉取最新文章，重新 <code>hugo</code> 生成，Caddy 会自动服务新文件。</p>
+
+                    <hr>
+
+                    <p>从 Hexo 迁移到 Hugo + Caddy 的组合，让我的博客维护成本降到了最低。写文章、推送、自动部署，整个流程非常流畅。如果你也在考虑搭建个人博客，推荐试试这个方案。</p>
+                </div>
+
+                <div class="post-card-tags" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border);">
+                    <a href="/tags/hugo/" class="tag">Hugo</a>
+                    <a href="/tags/caddy/" class="tag">Caddy</a>
+                    <a href="/tags/docker/" class="tag">Docker</a>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>© 2024–2026 林一 · 自建小站 · 所有内容均为原创</p>
+            <p>Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> & <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a></p>
+        </div>
+    </footer>
+</body>
+</html>

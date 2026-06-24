@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>林一的技术笔记</title>
+    <meta name="description" content="林一的个人技术博客，专注Go、Kubernetes、网络协议的实践笔记与分享">
+    <meta name="author" content="林一">
+    <meta property="og:title" content="林一的技术笔记">
+    <meta property="og:description" content="专注Go、Kubernetes、网络协议的实践笔记与分享">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="林一的技术笔记">
+    <meta name="twitter:card" content="summary">
+    <link rel="canonical" href="/">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="alternate" type="application/atom+xml" title="林一的技术笔记" href="/atom.xml">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container">
+            <a href="/" class="site-title">林一的技术笔记</a>
+            <nav class="site-nav">
+                <a href="/" class="active">首页</a>
+                <a href="/about/">关于</a>
+                <a href="/posts/">归档</a>
+                <a href="/categories/">分类</a>
+                <a href="/tags/">标签</a>
+                <a href="/links/">友链</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <article class="post-card">
+                <h2 class="post-card-title"><a href="/posts/tls-camouflage/">在 VPS 上搭建 TLS 伪装站点的小记</a></h2>
+                <div class="post-card-meta">
+                    <time datetime="2026-06-20">2026-06-20</time>
+                    <span>·</span>
+                    <span>约 8 分钟</span>
+                </div>
+                <p class="post-card-summary">最近在研究 TLS 协议的 SNI 扩展机制时，发现通过合理配置 Nginx 或 Caddy，可以让服务器在 TLS 握手阶段返回与域名匹配的合法证书。本文记录了使用 Caddy 自动签发 Let's Encrypt 证书并配置静态站点的完整过程。</p>
+                <div class="post-card-tags">
+                    <a href="/tags/tls/" class="tag">TLS</a>
+                    <a href="/tags/caddy/" class="tag">Caddy</a>
+                    <a href="/tags/vps/" class="tag">VPS</a>
+                </div>
+            </article>
+
+            <article class="post-card">
+                <h2 class="post-card-title"><a href="/posts/cloudflare-origin/">浅析 Cloudflare 回源证书配置</a></h2>
+                <div class="post-card-meta">
+                    <time datetime="2026-06-15">2026-06-15</time>
+                    <span>·</span>
+                    <span>约 6 分钟</span>
+                </div>
+                <p class="post-card-summary">Cloudflare 的回源证书（Origin CA Certificate）是保障 CDN 到源站通信安全的重要机制。本文从证书签发、Nginx 配置到 Cloudflare 控制台设置，逐步演示完整配置流程，并对比了 Full 与 Full (Strict) 模式的差异。</p>
+                <div class="post-card-tags">
+                    <a href="/tags/cloudflare/" class="tag">Cloudflare</a>
+                    <a href="/tags/ssl/" class="tag">SSL</a>
+                    <a href="/tags/nginx/" class="tag">Nginx</a>
+                </div>
+            </article>
+
+            <article class="post-card">
+                <h2 class="post-card-title"><a href="/posts/hugo-vs-hexo/">Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</a></h2>
+                <div class="post-card-meta">
+                    <time datetime="2026-06-10">2026-06-10</time>
+                    <span>·</span>
+                    <span>约 5 分钟</span>
+                </div>
+                <p class="post-card-summary">从 Hexo 迁移到 Hugo 后，部署方案也需要同步更新。在对比了 Nginx、Caddy 和 Apache 后，我最终选择了 Caddy——自动 HTTPS、极简配置文件、Docker 一键部署，这些特性让它成为个人博客服务器的理想选择。</p>
+                <div class="post-card-tags">
+                    <a href="/tags/hugo/" class="tag">Hugo</a>
+                    <a href="/tags/caddy/" class="tag">Caddy</a>
+                    <a href="/tags/docker/" class="tag">Docker</a>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>© 2024–2026 林一 · 自建小站 · 所有内容均为原创</p>
+            <p>Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> & <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a></p>
+        </div>
+    </footer>
+</body>
+</html>
