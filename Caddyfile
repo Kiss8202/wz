@@ -1,0 +1,5 @@
+your-domain.com {
+    tls your-email@example.com
+    root * /usr/share/caddy
+    file_server
+}
