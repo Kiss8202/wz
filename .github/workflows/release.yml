@@ -16,7 +16,8 @@ jobs:
       - name: Pack release archive
         run: |
           mkdir -p /tmp/reality-site
-          cp -r site/ install.sh modules/ /tmp/reality-site/
+          cp -r site/ /tmp/reality-site/
+          cp deploy.sh Caddyfile docker-compose.yml /tmp/reality-site/
           cd /tmp
           tar czf reality-site.tar.gz reality-site/
 
@@ -32,15 +33,22 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
           body: |
-            Reality SNI 伪装站点 + sing-box 管理脚本
+            Reality SNI 伪装站点一键部署脚本
 
             一键部署：
             ```bash
-            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh)
+            bash deploy.sh -d your-domain.com -e your@email.com
             ```
 
-            主菜单选择 `[8] 伪装站点` 即可部署 Caddy 伪装站
+            交互式部署：
+            ```bash
+            bash deploy.sh
+            ```
+
+            卸载：
+            ```bash
+            bash deploy.sh -u
+            ```
           files: |
             /tmp/reality-site.tar.gz
-            install.sh
-            modules/*.sh
+            deploy.sh
