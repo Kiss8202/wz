@@ -24,15 +24,7 @@ your-domain.com {
     }
 }
 
-# 拒绝所有未配置域名的请求（防SNI探测）
-:443 {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-    abort
-}
-
 :80 {
     @notmyhost not host your-domain.com
-    abort @notmyhost
+    respond @notmyhost "" 444
 }
