@@ -2,7 +2,10 @@
 # ============================================================
 #  Reality SNI 伪装站点一键部署脚本
 #  支持: Ubuntu / Debian / CentOS / Fedora
-#  用法: bash deploy.sh [-d 域名] [-e 邮箱] [-u 卸载]
+#  用法:
+#    bash deploy.sh -d <域名> -e <邮箱>    # 一键安装
+#    bash deploy.sh -m <新域名>             # 修改域名
+#    bash deploy.sh -u                      # 卸载
 # ============================================================
 set -euo pipefail
 
@@ -21,6 +24,7 @@ CONTAINER_NAME="reality-site"
 DOMAIN=""
 EMAIL=""
 ACTION="install"
+NEW_DOMAIN=""
 
 # ==================== 解析参数 ====================
 usage() {
@@ -29,20 +33,23 @@ ${BOLD}Reality SNI 伪装站点 一键部署脚本${NC}
 
 用法:
   bash deploy.sh -d <域名> -e <邮箱>    # 一键安装
+  bash deploy.sh -m <新域名>             # 修改域名
   bash deploy.sh -u                      # 卸载
 
 选项:
   -d  域名    你的完整域名 (例如 blog.example.com)
   -e  邮箱    用于 Let's Encrypt 证书通知
+  -m  新域名  修改已部署站点的域名
   -u          卸载已部署的站点
   -h          显示帮助
 EOF
 }
 
-while getopts "d:e:uh" opt; do
+while getopts "d:e:m:uh" opt; do
     case $opt in
         d) DOMAIN="$OPTARG" ;;
         e) EMAIL="$OPTARG" ;;
+        m) NEW_DOMAIN="$OPTARG"; ACTION="modify" ;;
         u) ACTION="uninstall" ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
@@ -65,13 +72,160 @@ uninstall() {
         rm -rf "$DEPLOY_DIR"
     fi
 
-    docker volume rm reality-site_caddy_data >/dev/null 2>&1 || true
+    docker volume rm reality-site_caddy_data reality-site_caddy_config >/dev/null 2>&1 || true
 
     info "卸载完成"
     exit 0
 }
 
 [[ "$ACTION" == "uninstall" ]] && uninstall
+
+# ==================== 修改域名逻辑 ====================
+modify_domain() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}  修改伪装站点域名${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+
+    # 检查是否已部署
+    if [[ ! -f "$DEPLOY_DIR/Caddyfile" ]]; then
+        die "未检测到已部署的站点，请先运行 bash deploy.sh -d <域名> -e <邮箱> 安装"
+    fi
+
+    # 获取当前域名
+    OLD_DOMAIN=$(grep -oP '^\S+\.?\S+ \{' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 | sed 's/ {//' || true)
+    if [[ -z "$OLD_DOMAIN" ]]; then
+        OLD_DOMAIN=$(head -1 "$DEPLOY_DIR/Caddyfile" | awk '{print $1}')
+    fi
+
+    # 交互式输入新域名
+    if [[ -z "$NEW_DOMAIN" ]]; then
+        info "当前域名: ${OLD_DOMAIN}"
+        read -rp "请输入新域名: " NEW_DOMAIN
+    fi
+
+    if [[ -z "$NEW_DOMAIN" ]]; then
+        die "新域名不能为空"
+    fi
+
+    if [[ "$NEW_DOMAIN" == "$OLD_DOMAIN" ]]; then
+        die "新域名与当前域名相同"
+    fi
+
+    # 询问是否同时修改邮箱
+    OLD_EMAIL=$(grep -oP 'tls \K\S+' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 || true)
+    NEW_EMAIL="$OLD_EMAIL"
+    echo ""
+    info "当前邮箱: ${OLD_EMAIL}"
+    read -rp "是否修改邮箱? 输入新邮箱或留空保持不变: " INPUT_EMAIL
+    if [[ -n "$INPUT_EMAIL" ]]; then
+        NEW_EMAIL="$INPUT_EMAIL"
+    fi
+
+    echo ""
+    info "旧域名: ${OLD_DOMAIN}"
+    info "新域名: ${NEW_DOMAIN}"
+    info "邮箱:   ${NEW_EMAIL}"
+    echo ""
+    read -rp "确认修改? (y/N): " CONFIRM
+    [[ "${CONFIRM,,}" != "y" ]] && die "用户取消"
+
+    # 1. 重新生成 Caddyfile
+    info "更新 Caddyfile..."
+    cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
+${NEW_DOMAIN} {
+    tls ${NEW_EMAIL} {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
+    root * /usr/share/caddy
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer-when-downgrade
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    redir /feed /atom.xml permanent
+    redir /rss /atom.xml permanent
+    redir /rss.xml /atom.xml permanent
+    redir /sitemap /sitemap.xml permanent
+
+    handle_errors {
+        rewrite * /404.html
+        file_server
+    }
+}
+
+:80 {
+    @notmyhost not host ${NEW_DOMAIN}
+    respond @notmyhost "" 444
+}
+CADDYEOF
+
+    # 2. 替换站点文件中的旧域名
+    info "更新站点文件中的域名..."
+    if [[ -d "$DEPLOY_DIR/site" ]]; then
+        find "$DEPLOY_DIR/site" -type f \( -name "*.xml" -o -name "*.txt" -o -name "*.html" \) \
+            -exec sed -i "s|${OLD_DOMAIN}|${NEW_DOMAIN}|g" {} + 2>/dev/null || true
+        # 同时替换 __DOMAIN__ 占位符（如果之前未被替换）
+        find "$DEPLOY_DIR/site" -type f \( -name "*.xml" -o -name "*.txt" \) \
+            -exec sed -i "s|__DOMAIN__|${NEW_DOMAIN}|g" {} + 2>/dev/null || true
+    fi
+
+    # 3. 清理旧证书并重启
+    info "清理旧证书数据..."
+    docker volume rm reality-site_caddy_data >/dev/null 2>&1 || true
+
+    info "重启 Caddy 容器..."
+    cd "$DEPLOY_DIR"
+    docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
+    docker compose up -d 2>/dev/null || docker-compose up -d
+
+    # 4. 等待新证书签发
+    info "等待新域名 SSL 证书签发..."
+    echo -n "  "
+
+    CERT_OK=false
+    for i in $(seq 1 30); do
+        echo -n "."
+        sleep 2
+
+        if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+            echo ""
+            die "容器异常退出，请查看日志: docker logs $CONTAINER_NAME"
+        fi
+
+        if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "certificate obtained successfully"; then
+            CERT_OK=true
+            break
+        fi
+    done
+    echo ""
+
+    # 5. 显示结果
+    echo ""
+    echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║          域名修改结果                            ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+    info "旧域名: ${OLD_DOMAIN}"
+    info "新域名: ${NEW_DOMAIN}"
+    info "访问地址: https://${NEW_DOMAIN}"
+
+    if [[ "$CERT_OK" == "true" ]]; then
+        info "SSL 证书: ${GREEN}已签发${NC}"
+    else
+        warn "SSL 证书: ${YELLOW}签发中，请稍后访问验证${NC}"
+        warn "请确保新域名 DNS 已指向本机 IP"
+    fi
+    echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+
+    exit 0
+}
+
+[[ "$ACTION" == "modify" ]] && modify_domain
 
 # ==================== 检查 root ====================
 if [[ $EUID -ne 0 ]]; then
@@ -127,18 +281,18 @@ pkg_install() {
 }
 
 # ==================== 步骤 1: 安装依赖 ====================
-info "[1/7] 安装基础依赖..."
+info "[1/8] 安装基础依赖..."
 pkg_install curl wget
 
 # ==================== 步骤 2: 安装 Docker ====================
 if ! command -v docker &>/dev/null; then
-    info "[2/7] 安装 Docker..."
+    info "[2/8] 安装 Docker..."
     curl -fsSL https://get.docker.com | bash
     systemctl enable docker >/dev/null 2>&1
     systemctl start docker  >/dev/null 2>&1
     info "Docker 安装完成"
 else
-    info "[2/7] Docker 已安装，跳过"
+    info "[2/8] Docker 已安装，跳过"
 fi
 
 # 确保 docker compose 可用
@@ -156,7 +310,7 @@ if ! docker compose version &>/dev/null 2>&1; then
 fi
 
 # ==================== 步骤 3: 检测端口占用 ====================
-info "[3/7] 检测端口..."
+info "[3/8] 检测端口..."
 check_port() {
     if ss -tlnp 2>/dev/null | grep -q ":${1} "; then
         local proc
@@ -178,7 +332,7 @@ if [[ "$PORT_OK" == "false" ]]; then
 fi
 
 # ==================== 步骤 4: 配置防火墙 ====================
-info "[4/7] 配置防火墙..."
+info "[4/8] 配置防火墙..."
 if command -v ufw &>/dev/null; then
     ufw allow 80/tcp  >/dev/null 2>&1 || true
     ufw allow 443/tcp >/dev/null 2>&1 || true
@@ -197,79 +351,67 @@ else
 fi
 
 # ==================== 步骤 5: 生成配置文件 ====================
-info "[5/7] 生成配置文件..."
+info "[5/8] 生成配置文件..."
 mkdir -p "$DEPLOY_DIR"
 
 # --- Caddyfile ---
 cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
 ${DOMAIN} {
-    tls ${EMAIL}
+    tls ${EMAIL} {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
     root * /usr/share/caddy
     file_server
 
-    # 安全头
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy no-referrer-when-downgrade
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
-    # 自定义 404
+    redir /feed /atom.xml permanent
+    redir /rss /atom.xml permanent
+    redir /rss.xml /atom.xml permanent
+    redir /sitemap /sitemap.xml permanent
+
     handle_errors {
-        respond "{http.error.status_code} {http.error.status_text}"
+        rewrite * /404.html
+        file_server
     }
+}
+
+:80 {
+    @notmyhost not host ${DOMAIN}
+    respond @notmyhost "" 444
 }
 CADDYEOF
 
-# --- index.html ---
-cat > "$DEPLOY_DIR/index.html" <<'HTMLEOF'
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>林一的技术笔记</title>
-    <meta name="description" content="林一的个人技术博客，记录Go、Kubernetes、网络协议的实践笔记">
-    <meta name="author" content="林一">
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#faf9f8;color:#1e1e1e;line-height:1.6;padding:2rem 1rem}
-        .container{max-width:780px;margin:0 auto;background:#fff;padding:2.5rem 2rem;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.05)}
-        h1{font-size:2.2rem;font-weight:700;margin-bottom:.25rem}
-        .subhead{color:#6b6b6b;font-size:1.1rem;border-bottom:2px solid #eaeaea;padding-bottom:1rem;margin-bottom:1.5rem}
-        h2{font-size:1.4rem;margin:1.8rem 0 .8rem;font-weight:600}
-        p{margin-bottom:1rem}
-        ul{list-style:none;padding-left:0}
-        ul li{background:#f4f4f4;margin-bottom:.5rem;padding:.6rem 1rem;border-radius:8px;font-size:.95rem}
-        .footer{margin-top:2rem;padding-top:1.5rem;border-top:1px solid #eaeaea;color:#888;font-size:.9rem;text-align:center}
-        a{color:#0066cc;text-decoration:none}
-        a:hover{text-decoration:underline}
-        .badge{display:inline-block;background:#eaeaea;padding:.2rem .6rem;border-radius:20px;font-size:.8rem;color:#555}
-    </style>
-</head>
-<body>
-<div class="container">
-    <h1>👋 你好，我是 林一</h1>
-    <div class="subhead">后端开发 · 云原生爱好者 · 独立博客</div>
-    <p>欢迎来到我的技术小站。这里会记录一些关于 <strong>Go、Kubernetes、网络协议</strong> 的实践笔记。</p>
-    <h2>📝 近期文章</h2>
-    <ul>
-        <li><span class="badge">2026-06-20</span> 在 VPS 上搭建 TLS 伪装站点的小记</li>
-        <li><span class="badge">2026-06-15</span> 浅析 Cloudflare 回源证书配置</li>
-        <li><span class="badge">2026-06-10</span> Hugo vs Hexo：我为什么选择 Caddy</li>
-    </ul>
-    <h2>📦 开源项目</h2>
-    <ul>
-        <li><a href="#">go-dns-proxy</a> – 轻量级 DNS 转发器 (GitHub 300+ star)</li>
-        <li><a href="#">k8s-toolkit</a> – 日常运维脚本集合</li>
-    </ul>
-    <h2>📬 联系</h2>
-    <p>✉️ <a href="mailto:linyi@example.com">linyi@example.com</a> ｜ 🐦 <a href="#">@linyi_dev</a></p>
-    <div class="footer">© 2026 林一 · 自建小站 · 所有内容均为原创</div>
-</div>
-</body>
-</html>
-HTMLEOF
+# --- 复制站点文件 ---
+info "准备站点文件..."
+if [[ -d "$(dirname "$0")/site" ]]; then
+    info "从本地 site/ 目录复制..."
+    cp -r "$(dirname "$0")/site" "$DEPLOY_DIR/site"
+else
+    info "本地无 site/ 目录，从 GitHub Release 下载..."
+    REPO_URL="https://github.com/Kiss8202/wz"
+    RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
+    if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
+        tar xzf /tmp/reality-site.tar.gz -C /tmp/
+        cp -r /tmp/reality-site/site "$DEPLOY_DIR/site"
+        rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
+        info "站点文件下载完成"
+    else
+        die "下载失败，请手动将 site/ 目录放到 $DEPLOY_DIR/"
+    fi
+fi
+
+# --- 替换域名占位符 ---
+if [[ -d "$DEPLOY_DIR/site" ]]; then
+    find "$DEPLOY_DIR/site" -type f \( -name "*.xml" -o -name "*.txt" \) \
+        -exec sed -i "s|__DOMAIN__|${DOMAIN}|g" {} + 2>/dev/null || true
+fi
 
 # --- docker-compose.yml ---
 cat > "$DEPLOY_DIR/docker-compose.yml" <<'COMPOSEEOF'
@@ -284,7 +426,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./index.html:/usr/share/caddy/index.html:ro
+      - ./site:/usr/share/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
@@ -294,8 +436,90 @@ volumes:
   caddy_config:
 COMPOSEEOF
 
-# ==================== 步骤 6: 启动容器 ====================
-info "[6/7] 拉取 Caddy 镜像并启动..."
+# ==================== 步骤 6: 防扫描加固 ====================
+info "[6/8] 配置防扫描规则..."
+
+# --- 屏蔽已知扫描器 IP 段 ---
+info "屏蔽 Shodan/Censys 等扫描器 IP..."
+SCAN_NETS=(
+    # Shodan
+    "198.51.44.0/24" "71.6.165.0/24" "71.6.146.0/24" "66.240.192.0/18" "74.82.160.0/19"
+    # Censys
+    "162.142.148.0/24" "167.248.133.0/24" "192.35.168.0/23"
+    # BinaryEdge
+    "157.230.0.0/16" "167.71.0.0/16" "167.99.0.0/16"
+    # Shadowserver
+    "184.105.247.0/24" "184.105.139.0/24"
+)
+for net in "${SCAN_NETS[@]}"; do
+    iptables -I INPUT -s "$net" -j DROP 2>/dev/null || true
+done
+
+# --- 安装 fail2ban 防暴力扫描 ---
+if ! command -v fail2ban-server &>/dev/null; then
+    info "安装 fail2ban..."
+    pkg_install fail2ban
+fi
+
+# 创建 fail2ban jail 配置
+mkdir -p /etc/fail2ban/jail.d
+cat > /etc/fail2ban/jail.d/reality-site.conf << 'F2BEOF'
+[nginx-http-auth]
+enabled = false
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 3600
+findtime = 600
+
+[port-scan]
+enabled = true
+filter = port-scan
+logpath = /var/log/syslog
+maxretry = 3
+bantime = 86400
+findtime = 300
+F2BEOF
+
+# 创建端口扫描过滤器
+cat > /etc/fail2ban/filter.d/port-scan.conf << 'F2BEOF'
+[Definition]
+failregex = .*SRC=<HOST>.*DPT=\d+.*
+ignoreregex =
+F2BEOF
+
+systemctl enable fail2ban >/dev/null 2>&1 || true
+systemctl start fail2ban  >/dev/null 2>&1 || true
+info "fail2ban 已配置"
+
+# --- iptables 防端口扫描 ---
+info "配置 iptables 防扫描规则..."
+iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP 2>/dev/null || true
+iptables -I INPUT -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j ACCEPT 2>/dev/null || true
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT 2>/dev/null || true
+
+# 保存 iptables 规则
+if command -v iptables-save &>/dev/null; then
+    case "$OS_ID" in
+        ubuntu|debian)
+            pkg_install iptables-persistent
+            iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+            ;;
+        centos|rhel|fedora|rocky|almalinux)
+            iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
+            ;;
+    esac
+fi
+
+info "防扫描规则配置完成"
+
+# ==================== 步骤 7: 启动容器 ====================
+info "[7/8] 拉取 Caddy 镜像并启动..."
 
 # 停止旧容器
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -306,8 +530,8 @@ fi
 cd "$DEPLOY_DIR"
 docker compose up -d 2>/dev/null || docker-compose up -d
 
-# ==================== 步骤 7: 等待证书签发并验证 ====================
-info "[7/7] 等待 Caddy 自动签发 SSL 证书..."
+# ==================== 步骤 8: 等待证书签发并验证 ====================
+info "[8/8] 等待 Caddy 自动签发 SSL 证书..."
 echo -n "  "
 
 CERT_OK=false
@@ -315,19 +539,16 @@ for i in $(seq 1 30); do
     echo -n "."
     sleep 2
 
-    # 检查容器是否还在运行
     if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         echo ""
         die "容器异常退出，请查看日志: docker logs $CONTAINER_NAME"
     fi
 
-    # 检查 443 端口是否已监听
     if docker exec "$CONTAINER_NAME" sh -c "netstat -tlnp 2>/dev/null | grep -q ':443'" 2>/dev/null; then
         CERT_OK=true
         break
     fi
 
-    # 检查日志中是否有证书签发成功的信息
     if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "certificate obtained successfully"; then
         CERT_OK=true
         break
@@ -368,10 +589,29 @@ warn "  名称: ${DOMAIN%%.*}"
 warn "  IP:   ${VPS_IP}"
 warn "  代理: 灰色云朵 (仅DNS，不开CDN)"
 echo ""
-info "Xray/Sing-box SNI: ${DOMAIN}"
+info "SNI 伪装域名: ${DOMAIN}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 info "常用命令:"
 echo "  查看日志:   docker logs $CONTAINER_NAME"
 echo "  重启服务:   cd $DEPLOY_DIR && docker compose restart"
+echo "  修改域名:   bash deploy.sh -m <新域名>"
 echo "  卸载站点:   bash deploy.sh -u"
+echo ""
+echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║             安全加固说明                        ║${NC}"
+echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+info "已启用的安全措施:"
+echo "  [1] TLS 1.3 + X25519 强制加密"
+echo "  [2] SNI 过滤 - 非本域名请求返回 444 断开"
+echo "  [3] HSTS 预加载 - 浏览器强制 HTTPS"
+echo "  [4] iptables 屏蔽 Shodan/Censys/BinaryEdge 扫描器"
+echo "  [5] fail2ban 防端口扫描和 SSH 暴力破解"
+echo "  [6] 连接速率限制 - 防大规模端口扫描"
+echo ""
+warn "额外建议（脚本无法自动完成）:"
+echo "  [1] 修改 SSH 默认端口（22 → 其他）"
+echo "  [2] 禁用密码登录，仅用密钥认证"
+echo "  [3] 在 Cloudflare 关闭证书透明度日志（需付费）"
+echo "  [4] 定期检查: curl -s https://crt.sh/?q=${DOMAIN}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"

@@ -1,5 +1,30 @@
 your-domain.com {
-    tls your-email@example.com
+    tls your-email@example.com {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
     root * /usr/share/caddy
     file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer-when-downgrade
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    redir /feed /atom.xml permanent
+    redir /rss /atom.xml permanent
+    redir /rss.xml /atom.xml permanent
+    redir /sitemap /sitemap.xml permanent
+
+    handle_errors {
+        rewrite * /404.html
+        file_server
+    }
+}
+
+:80 {
+    @notmyhost not host your-domain.com
+    respond @notmyhost "" 444
 }
