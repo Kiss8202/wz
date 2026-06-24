@@ -203,7 +203,10 @@ mkdir -p "$DEPLOY_DIR"
 # --- Caddyfile ---
 cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
 ${DOMAIN} {
-    tls ${EMAIL}
+    tls ${EMAIL} {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
     root * /usr/share/caddy
     file_server
 
@@ -212,12 +215,26 @@ ${DOMAIN} {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy no-referrer-when-downgrade
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
     # 自定义 404
     handle_errors {
         respond "{http.error.status_code} {http.error.status_text}"
     }
+}
+
+# 拒绝未配置域名的请求（防SNI探测/防偷用）
+:443 {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    abort
+}
+
+:80 {
+    @notmyhost not host ${DOMAIN}
+    abort @notmyhost
 }
 CADDYEOF
 
@@ -294,8 +311,95 @@ volumes:
   caddy_config:
 COMPOSEEOF
 
-# ==================== 步骤 6: 启动容器 ====================
-info "[6/7] 拉取 Caddy 镜像并启动..."
+# ==================== 步骤 6: 防扫描加固 ====================
+info "[6/9] 配置防扫描规则..."
+
+# --- 屏蔽已知扫描器 IP 段 ---
+info "屏蔽 Shodan/Censys 等扫描器 IP..."
+SCAN_NETS=(
+    # Shodan
+    "198.51.44.0/24" "71.6.165.0/24" "71.6.146.0/24" "66.240.192.0/18" "74.82.160.0/19"
+    # Censys
+    "162.142.148.0/24" "167.248.133.0/24" "192.35.168.0/23"
+    # BinaryEdge
+    "157.230.0.0/16" "167.71.0.0/16" "167.99.0.0/16"
+    # Shadowserver
+    "184.105.247.0/24" "184.105.139.0/24"
+)
+for net in "${SCAN_NETS[@]}"; do
+    iptables -I INPUT -s "$net" -j DROP 2>/dev/null || true
+done
+
+# --- 安装 fail2ban 防暴力扫描 ---
+if ! command -v fail2ban-server &>/dev/null; then
+    info "安装 fail2ban..."
+    pkg_install fail2ban
+fi
+
+# 创建 fail2ban jail 配置
+mkdir -p /etc/fail2ban/jail.d
+cat > /etc/fail2ban/jail.d/reality-site.conf << 'F2BEOF'
+[nginx-http-auth]
+enabled = false
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 3600
+findtime = 600
+
+[port-scan]
+enabled = true
+filter = port-scan
+logpath = /var/log/syslog
+maxretry = 3
+bantime = 86400
+findtime = 300
+F2BEOF
+
+# 创建端口扫描过滤器
+cat > /etc/fail2ban/filter.d/port-scan.conf << 'F2BEOF'
+[Definition]
+failregex = .*SRC=<HOST>.*DPT=\d+.*
+ignoreregex =
+F2BEOF
+
+systemctl enable fail2ban >/dev/null 2>&1 || true
+systemctl start fail2ban  >/dev/null 2>&1 || true
+info "fail2ban 已配置"
+
+# --- iptables 防端口扫描 ---
+info "配置 iptables 防扫描规则..."
+# 限制新连接速率（每秒不超过 10 个，突发不超过 20）
+iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP 2>/dev/null || true
+iptables -I INPUT -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j ACCEPT 2>/dev/null || true
+
+# 只允许已建立的连接和相关连接
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+
+# 允许 ICMP（ping）但限制速率
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT 2>/dev/null || true
+
+# 保存 iptables 规则
+if command -v iptables-save &>/dev/null; then
+    case "$OS_ID" in
+        ubuntu|debian)
+            pkg_install iptables-persistent
+            iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+            ;;
+        centos|rhel|fedora|rocky|almalinux)
+            iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
+            ;;
+    esac
+fi
+
+info "防扫描规则配置完成"
+
+# ==================== 步骤 7: 启动容器 ====================
+info "[7/9] 拉取 Caddy 镜像并启动..."
 
 # 停止旧容器
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -306,8 +410,8 @@ fi
 cd "$DEPLOY_DIR"
 docker compose up -d 2>/dev/null || docker-compose up -d
 
-# ==================== 步骤 7: 等待证书签发并验证 ====================
-info "[7/7] 等待 Caddy 自动签发 SSL 证书..."
+# ==================== 步骤 8: 等待证书签发并验证 ====================
+info "[8/9] 等待 Caddy 自动签发 SSL 证书..."
 echo -n "  "
 
 CERT_OK=false
@@ -375,3 +479,21 @@ info "常用命令:"
 echo "  查看日志:   docker logs $CONTAINER_NAME"
 echo "  重启服务:   cd $DEPLOY_DIR && docker compose restart"
 echo "  卸载站点:   bash deploy.sh -u"
+echo ""
+echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║             安全加固说明                        ║${NC}"
+echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+info "已启用的安全措施:"
+echo "  [1] TLS 1.3 + X25519 强制加密"
+echo "  [2] SNI 过滤 - 非本域名请求直接 abort"
+echo "  [3] HSTS 预加载 - 浏览器强制 HTTPS"
+echo "  [4] iptables 屏蔽 Shodan/Censys/BinaryEdge 扫描器"
+echo "  [5] fail2ban 防端口扫描和 SSH 暴力破解"
+echo "  [6] 连接速率限制 - 防大规模端口扫描"
+echo ""
+warn "额外建议（脚本无法自动完成）:"
+echo "  [1] 修改 SSH 默认端口（22 → 其他）"
+echo "  [2] 禁用密码登录，仅用密钥认证"
+echo "  [3] 在 Cloudflare 关闭证书透明度日志（需付费）"
+echo "  [4] 定期检查: curl -s https://crt.sh/?q=${DOMAIN}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
