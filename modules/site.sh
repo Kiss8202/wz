@@ -331,5 +331,33 @@ remove_site() {
     [[ -d "${SITE_DEPLOY_DIR}" ]] && rm -rf "${SITE_DEPLOY_DIR}"
     docker volume rm reality-site_caddy_data reality-site_caddy_config >/dev/null 2>&1 || true
 
+    # 检查是否有 Reality 节点使用了本地 Caddy fallback
+    if [[ -f "${CONFIG_FILE}" ]] && grep -q "127.0.0.1:8080" "${CONFIG_FILE}" 2>/dev/null; then
+        print_warning "检测到有 Reality 节点使用本地 Caddy fallback"
+        print_warning "卸载后这些节点将无法正常工作"
+        if confirm "是否自动将 fallback 改为远程握手?"; then
+            # 将 handshake.server 从 127.0.0.1 改回对应的 SNI 域名
+            if command -v jq &>/dev/null && [[ -f "${CONFIG_FILE}" ]]; then
+                local sni=""
+                for tag in "${INBOUND_TAGS[@]}"; do
+                    local idx="${INBOUND_TAGS[(i)$tag]}"
+                    local proto="${INBOUND_PROTOS[$idx]}"
+                    if [[ "$proto" == "vless" ]]; then
+                        local port="${INBOUND_PORTS[$idx]}"
+                        sni=$(jq -r ".inbounds[] | select(.tag==\"vless-in-${port}\") | .tls.server_name // empty" "${CONFIG_FILE}" 2>/dev/null)
+                        if [[ -n "$sni" ]]; then
+                            jq_update_config ".inbounds[] | select(.tag==\"vless-in-${port}\") | .tls.reality.handshake" "{\"server\": \"${sni}\", \"server_port\": 443}"
+                            print_info "节点 vless-in-${port} fallback 已改为 ${sni}:443"
+                        fi
+                    fi
+                done
+                svc_restart
+                print_success "Reality 节点已更新为远程握手"
+            else
+                print_warning "无法自动修复，请手动修改 Reality 节点的 handshake 配置"
+            fi
+        fi
+    fi
+
     print_success "伪装站点已卸载"
 }
