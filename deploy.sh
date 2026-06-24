@@ -127,18 +127,18 @@ pkg_install() {
 }
 
 # ==================== 步骤 1: 安装依赖 ====================
-info "[1/7] 安装基础依赖..."
+info "[1/9] 安装基础依赖..."
 pkg_install curl wget
 
 # ==================== 步骤 2: 安装 Docker ====================
 if ! command -v docker &>/dev/null; then
-    info "[2/7] 安装 Docker..."
+    info "[2/9] 安装 Docker..."
     curl -fsSL https://get.docker.com | bash
     systemctl enable docker >/dev/null 2>&1
     systemctl start docker  >/dev/null 2>&1
     info "Docker 安装完成"
 else
-    info "[2/7] Docker 已安装，跳过"
+    info "[2/9] Docker 已安装，跳过"
 fi
 
 # 确保 docker compose 可用
@@ -156,7 +156,7 @@ if ! docker compose version &>/dev/null 2>&1; then
 fi
 
 # ==================== 步骤 3: 检测端口占用 ====================
-info "[3/7] 检测端口..."
+info "[3/9] 检测端口..."
 check_port() {
     if ss -tlnp 2>/dev/null | grep -q ":${1} "; then
         local proc
@@ -178,7 +178,7 @@ if [[ "$PORT_OK" == "false" ]]; then
 fi
 
 # ==================== 步骤 4: 配置防火墙 ====================
-info "[4/7] 配置防火墙..."
+info "[4/9] 配置防火墙..."
 if command -v ufw &>/dev/null; then
     ufw allow 80/tcp  >/dev/null 2>&1 || true
     ufw allow 443/tcp >/dev/null 2>&1 || true
@@ -197,7 +197,7 @@ else
 fi
 
 # ==================== 步骤 5: 生成配置文件 ====================
-info "[5/7] 生成配置文件..."
+info "[5/9] 生成配置文件..."
 mkdir -p "$DEPLOY_DIR"
 
 # --- Caddyfile ---
@@ -218,28 +218,31 @@ ${DOMAIN} {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
-    # 自定义 404
+    # RSS/Sitemap 快捷路径
+    redir /feed /atom.xml permanent
+    redir /rss /atom.xml permanent
+    redir /rss.xml /atom.xml permanent
+    redir /sitemap /sitemap.xml permanent
+
+    # 自定义错误页
     handle_errors {
-        respond "{http.error.status_code} {http.error.status_text}"
+        rewrite * /404.html
+        file_server
     }
 }
 
-# 拒绝未配置域名的请求（防SNI探测/防偷用）
-:443 {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-    abort
-}
-
+# 拒绝用IP直接访问（防SNI探测/防偷用）
+# Caddy 对未匹配域名的 TLS 握手默认不返回证书
+# 此块仅处理 HTTP 层面的 IP 直连请求
 :80 {
     @notmyhost not host ${DOMAIN}
-    abort @notmyhost
+    respond @notmyhost "" 444
 }
 CADDYEOF
 
 # --- index.html ---
-cat > "$DEPLOY_DIR/index.html" <<'HTMLEOF'
+mkdir -p "$DEPLOY_DIR/site"
+cat > "$DEPLOY_DIR/site/index.html" <<'HTMLEOF'
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -301,7 +304,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./index.html:/usr/share/caddy/index.html:ro
+      - ./site:/usr/share/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
@@ -310,6 +313,13 @@ volumes:
   caddy_data:
   caddy_config:
 COMPOSEEOF
+
+# --- 替换站点文件中的域名占位符 ---
+info "替换站点文件中的域名占位符..."
+if [[ -d "$DEPLOY_DIR/site" ]]; then
+    find "$DEPLOY_DIR/site" -type f \( -name "*.xml" -o -name "*.txt" \) \
+        -exec sed -i "s|__DOMAIN__|${DOMAIN}|g" {} + 2>/dev/null || true
+fi
 
 # ==================== 步骤 6: 防扫描加固 ====================
 info "[6/9] 配置防扫描规则..."
@@ -485,7 +495,7 @@ echo -e "${CYAN}║             安全加固说明                        ║${N
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
 info "已启用的安全措施:"
 echo "  [1] TLS 1.3 + X25519 强制加密"
-echo "  [2] SNI 过滤 - 非本域名请求直接 abort"
+echo "  [2] SNI 过滤 - 非本域名请求返回444断开"
 echo "  [3] HSTS 预加载 - 浏览器强制 HTTPS"
 echo "  [4] iptables 屏蔽 Shodan/Censys/BinaryEdge 扫描器"
 echo "  [5] fail2ban 防端口扫描和 SSH 暴力破解"

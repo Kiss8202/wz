@@ -24,17 +24,10 @@ your-domain.com {
     }
 }
 
-# 拒绝所有未配置域名的请求（防SNI探测）
-# 当有人用IP或错误域名访问时，直接断开连接
-:443 {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-    abort
-}
-
+# 拒绝用IP直接访问（防SNI探测/防偷用）
+# Caddy 对未匹配域名的 TLS 握手默认不返回证书
+# 此块仅处理 HTTP 层面的 IP 直连请求
 :80 {
-    # 对非本机域名的HTTP请求也直接断开
     @notmyhost not host your-domain.com
-    abort @notmyhost
+    respond @notmyhost "" 444
 }
