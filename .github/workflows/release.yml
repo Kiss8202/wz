@@ -16,7 +16,7 @@ jobs:
       - name: Pack release archive
         run: |
           mkdir -p /tmp/reality-site
-          cp -r site/ Caddyfile docker-compose.yml deploy.sh /tmp/reality-site/
+          cp -r site/ install.sh modules/ /tmp/reality-site/
           cd /tmp
           tar czf reality-site.tar.gz reality-site/
 
@@ -34,15 +34,20 @@ jobs:
           body: |
             Reality SNI 伪装站点部署包
 
-            一键部署命令：
+            一键部署命令（独立模式）：
             ```bash
-            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/deploy.sh) -d 你的域名 -e 你的邮箱
+            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh) \
+              -d 你的域名 -e 你的邮箱 -m standalone
             ```
-          files: /tmp/reality-site.tar.gz
 
-      - name: Upload deploy.sh as release asset
-        run: |
-          # 同时上传 deploy.sh 到 latest，方便一键拉取
-          gh release upload ${{ steps.tag.outputs.tag }} deploy.sh --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            与 sing-box 共存模式：
+            ```bash
+            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh) \
+              -d 你的域名 -e 你的邮箱 -m with-singbox
+            ```
+          files: |
+            /tmp/reality-site.tar.gz
+            install.sh
+            modules/core.sh
+            modules/site.sh
+            modules/security.sh
