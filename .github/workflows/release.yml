@@ -57,4 +57,3 @@ jobs:
           files: |
             /tmp/reality-site.tar.gz
             deploy.sh
-            site-templates/generate.sh
