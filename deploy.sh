@@ -4,7 +4,11 @@
 #  支持: Ubuntu / Debian / CentOS / Fedora / Rocky / Alma
 #  用法:
 #    bash deploy.sh -d <域名> -e <邮箱> [-r <仓库地址>]
-#    bash deploy.sh -u          # 卸载
+#    bash deploy.sh -u                      # 卸载
+#
+#  一键远程部署:
+#    bash <(curl -sL <仓库>/releases/latest/download/deploy.sh) \
+#      -d blog.example.com -e you@mail.com -r <仓库地址>
 # ============================================================
 set -euo pipefail
 
@@ -30,13 +34,14 @@ usage() {
 ${BOLD}Reality SNI 伪装站点 一键部署脚本${NC}
 
 用法:
-  bash deploy.sh -d <域名> -e <邮箱> [-r <仓库>]
-  bash deploy.sh -u                      # 卸载
+  bash deploy.sh -d <域名> -e <邮箱> [-r <仓库地址>]
+  bash deploy.sh -u                            # 卸载
 
 选项:
   -d  域名      你的完整域名 (例如 blog.example.com)
   -e  邮箱      用于 Let's Encrypt 证书通知
-  -r  仓库地址  GitHub 仓库 URL (可选，默认自动生成站点文件)
+  -r  仓库地址  GitHub 仓库 URL (例如 https://github.com/user/repo)
+                指定后从 Release 下载站点文件，否则本地生成
   -u            卸载已部署的站点
   -h            显示帮助
 EOF
@@ -126,7 +131,7 @@ pkg_install() {
 
 # ==================== 步骤 1: 安装依赖 ====================
 info "[1/8] 安装基础依赖..."
-pkg_install curl wget git
+pkg_install curl wget
 
 # ==================== 步骤 2: 安装 Docker ====================
 if ! command -v docker &>/dev/null; then
@@ -192,21 +197,39 @@ else
     warn "未检测到防火墙，请确保云服务商安全组已放行 80/443"
 fi
 
-# ==================== 步骤 5: 拉取或生成站点文件 ====================
-info "[5/8] 准备站点文件..."
+# ==================== 步骤 5: 获取站点文件 ====================
+info "[5/8] 获取站点文件..."
 mkdir -p "$DEPLOY_DIR"
 
 if [[ -n "$REPO_URL" ]]; then
-    # 从 GitHub 拉取
-    info "从仓库拉取站点文件: $REPO_URL"
-    if [[ -d "$DEPLOY_DIR/.git" ]]; then
-        cd "$DEPLOY_DIR" && git pull
-    else
-        git clone "$REPO_URL" "$DEPLOY_DIR"
+    # 从 GitHub Release 下载压缩包
+    # 将 https://github.com/user/repo 转换为 API 地址
+    REPO_API="${REPO_URL%.git}"
+    REPO_API="${REPO_API#https://github.com/}"
+    RELEASE_URL="https://github.com/${REPO_API}/releases/latest/download/reality-site.tar.gz"
+
+    info "从 Release 下载站点文件..."
+    info "下载地址: $RELEASE_URL"
+
+    if ! curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL"; then
+        die "下载 Release 失败，请检查仓库地址是否正确，以及是否已创建 Release"
     fi
+
+    info "解压站点文件..."
+    tar xzf /tmp/reality-site.tar.gz -C /tmp/
+
+    # 复制文件到部署目录
+    cp -r /tmp/reality-site/site/ "$DEPLOY_DIR/site/"
+    cp /tmp/reality-site/Caddyfile "$DEPLOY_DIR/Caddyfile"
+    cp /tmp/reality-site/docker-compose.yml "$DEPLOY_DIR/docker-compose.yml"
+
+    # 清理临时文件
+    rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
+
+    info "站点文件下载完成"
 else
     # 本地生成站点文件
-    info "生成站点文件..."
+    info "未指定仓库地址，本地生成站点文件..."
     generate_site
 fi
 
@@ -309,7 +332,7 @@ echo ""
 info "常用命令:"
 echo "  查看日志:   docker logs $CONTAINER_NAME"
 echo "  重启服务:   cd $DEPLOY_DIR && docker compose restart"
-echo "  更新站点:   cd $DEPLOY_DIR && git pull && docker compose restart"
+echo "  更新站点:   重新运行部署脚本即可"
 echo "  卸载站点:   bash deploy.sh -u"
 
 # ==================== 生成站点文件的函数 ====================
@@ -444,7 +467,7 @@ XMLEOF
     <id>https://__DOMAIN__/posts/tls-camouflage/</id>
     <published>2026-06-20T00:00:00+08:00</published>
     <updated>2026-06-20T00:00:00+08:00</updated>
-    <summary>记录使用 Caddy 在 VPS 上搭建 TLS 站点的完整过程，包括证书自动签发、Docker 部署和 DNS 配置。</summary>
+    <summary>记录使用 Caddy 在 VPS 上搭建 TLS 站点的完整过程。</summary>
     <category term="技术"/><category term="TLS"/><category term="Caddy"/><category term="VPS"/>
   </entry>
   <entry>
@@ -453,7 +476,7 @@ XMLEOF
     <id>https://__DOMAIN__/posts/cloudflare-origin/</id>
     <published>2026-06-15T00:00:00+08:00</published>
     <updated>2026-06-15T00:00:00+08:00</updated>
-    <summary>详解 Cloudflare 回源证书的配置流程，对比 Full 与 Full Strict 模式的差异。</summary>
+    <summary>详解 Cloudflare 回源证书的配置流程。</summary>
     <category term="技术"/><category term="Cloudflare"/><category term="SSL"/><category term="Nginx"/>
   </entry>
   <entry>
@@ -462,7 +485,7 @@ XMLEOF
     <id>https://__DOMAIN__/posts/hugo-vs-hexo/</id>
     <published>2026-06-10T00:00:00+08:00</published>
     <updated>2026-06-10T00:00:00+08:00</updated>
-    <summary>从 Hexo 迁移到 Hugo 后的部署方案对比，以及为什么 Caddy 是个人博客服务器的理想选择。</summary>
+    <summary>从 Hexo 迁移到 Hugo 后的部署方案对比。</summary>
     <category term="技术"/><category term="Hugo"/><category term="Caddy"/><category term="Docker"/>
   </entry>
 </feed>
@@ -489,45 +512,34 @@ volumes:
   caddy_config:
 COMPOSEEOF
 
-    # ---------- HTML 页面 (使用 heredoc + sed 替换域名) ----------
-    # 由于 HTML 页面较多，这里使用 find + cp 的方式从仓库中复制
-    # 如果不是从仓库拉取，则内联生成所有页面
-
-    # 生成所有 HTML 页面
+    # ---------- HTML 页面 ----------
     _nav='<a href="/">首页</a> <a href="/about/">关于</a> <a href="/posts/">归档</a> <a href="/categories/">分类</a> <a href="/tags/">标签</a> <a href="/links/">友链</a>'
     _footer='<p>© 2024–2026 林一 · 自建小站 · 所有内容均为原创</p><p>Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> & <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a></p>'
 
-    # index.html
     cat > "$SITE_DIR/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>林一的技术笔记</title><meta name="description" content="林一的个人技术博客，专注Go、Kubernetes、网络协议的实践笔记与分享"><meta property="og:title" content="林一的技术笔记"><meta property="og:type" content="website"><link rel="canonical" href="/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="alternate" type="application/atom+xml" title="林一的技术笔记" href="/atom.xml"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><article class="post-card"><h2 class="post-card-title"><a href="/posts/tls-camouflage/">在 VPS 上搭建 TLS 伪装站点的小记</a></h2><div class="post-card-meta"><time datetime="2026-06-20">2026-06-20</time><span>·</span><span>约 8 分钟</span></div><p class="post-card-summary">最近在研究 TLS 协议的 SNI 扩展机制时，发现通过合理配置 Caddy，可以让服务器在 TLS 握手阶段返回与域名匹配的合法证书。本文记录了使用 Caddy 自动签发 Let's Encrypt 证书并配置静态站点的完整过程。</p><div class="post-card-tags"><a href="/tags/tls/" class="tag">TLS</a><a href="/tags/caddy/" class="tag">Caddy</a><a href="/tags/vps/" class="tag">VPS</a></div></article><article class="post-card"><h2 class="post-card-title"><a href="/posts/cloudflare-origin/">浅析 Cloudflare 回源证书配置</a></h2><div class="post-card-meta"><time datetime="2026-06-15">2026-06-15</time><span>·</span><span>约 6 分钟</span></div><p class="post-card-summary">Cloudflare 的回源证书是保障 CDN 到源站通信安全的重要机制。本文从证书签发、Nginx 配置到 Cloudflare 控制台设置，逐步演示完整配置流程。</p><div class="post-card-tags"><a href="/tags/cloudflare/" class="tag">Cloudflare</a><a href="/tags/ssl/" class="tag">SSL</a><a href="/tags/nginx/" class="tag">Nginx</a></div></article><article class="post-card"><h2 class="post-card-title"><a href="/posts/hugo-vs-hexo/">Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</a></h2><div class="post-card-meta"><time datetime="2026-06-10">2026-06-10</time><span>·</span><span>约 5 分钟</span></div><p class="post-card-summary">从 Hexo 迁移到 Hugo 后，部署方案也需要同步更新。在对比了 Nginx、Caddy 和 Apache 后，我最终选择了 Caddy——自动 HTTPS、极简配置文件、Docker 一键部署。</p><div class="post-card-tags"><a href="/tags/hugo/" class="tag">Hugo</a><a href="/tags/caddy/" class="tag">Caddy</a><a href="/tags/docker/" class="tag">Docker</a></div></article></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF
 
-    # 404.html
     cat > "$SITE_DIR/404.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>404 页面未找到 | 林一的技术笔记</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><div class="not-found"><h1>404</h1><p>抱歉，你访问的页面不存在或已被移除</p><a href="/">返回首页</a></div></div></main><footer class="site-footer"><div class="container"><p>© 2024–2026 林一 · 自建小站</p></div></footer></body></html>
 HTMLEOF
 
-    # about/index.html
     cat > "$SITE_DIR/about/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>关于 | 林一的技术笔记</title><meta name="description" content="关于林一 - 后端开发工程师，专注Go、Kubernetes与云原生技术"><link rel="canonical" href="/about/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><h1 class="section-title">关于我</h1><div class="about-content"><h2>👋 你好，我是林一</h2><p>一名后端开发工程师，目前在杭州工作。日常主要使用 Go 语言开发微服务，对 Kubernetes、容器化和网络协议有浓厚兴趣。</p><h2>技术栈</h2><ul><li><strong>语言：</strong>Go、Python、Shell</li><li><strong>框架：</strong>Gin、gRPC、Echo</li><li><strong>运维：</strong>Kubernetes、Docker、Terraform</li><li><strong>数据库：</strong>PostgreSQL、Redis、etcd</li><li><strong>网络：</strong>TLS/SSL、HTTP/2、gRPC、DNS</li></ul><h2>关于本站</h2><p>本站使用 <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> 生成静态页面，由 <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a> 提供服务，部署在日本 VPS 上。所有文章均为原创，转载请注明出处。</p><h2>联系方式</h2><ul><li>邮箱：<a href="mailto:linyi@example.com">linyi@example.com</a></li><li>GitHub：<a href="https://github.com/linyi-dev" target="_blank" rel="noopener">linyi-dev</a></li><li>Twitter：<a href="https://twitter.com/linyi_dev" target="_blank" rel="noopener">@linyi_dev</a></li></ul></div></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF
 
-    # posts/index.html
     cat > "$SITE_DIR/posts/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>文章归档 | 林一的技术笔记</title><link rel="canonical" href="/posts/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><h1 class="section-title">文章归档</h1><div class="archive-year">2026</div><div class="archive-item"><span class="archive-date">06-20</span><a href="/posts/tls-camouflage/">在 VPS 上搭建 TLS 伪装站点的小记</a></div><div class="archive-item"><span class="archive-date">06-15</span><a href="/posts/cloudflare-origin/">浅析 Cloudflare 回源证书配置</a></div><div class="archive-item"><span class="archive-date">06-10</span><a href="/posts/hugo-vs-hexo/">Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</a></div></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF
 
-    # categories/index.html
     cat > "$SITE_DIR/categories/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>分类 | 林一的技术笔记</title><link rel="canonical" href="/categories/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><h1 class="section-title">分类</h1><div class="cloud-list"><a href="#技术" class="cloud-item">技术 <span class="cloud-count">3</span></a></div><h2 id="技术" style="margin-top:2rem;font-size:1.2rem;color:var(--color-text-secondary)">技术</h2><div class="archive-item"><span class="archive-date">06-20</span><a href="/posts/tls-camouflage/">在 VPS 上搭建 TLS 伪装站点的小记</a></div><div class="archive-item"><span class="archive-date">06-15</span><a href="/posts/cloudflare-origin/">浅析 Cloudflare 回源证书配置</a></div><div class="archive-item"><span class="archive-date">06-10</span><a href="/posts/hugo-vs-hexo/">Hugo vs Hexo：我为什么选择 Caddy 作为静态站点服务器</a></div></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF
 
-    # tags/index.html
     cat > "$SITE_DIR/tags/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>标签 | 林一的技术笔记</title><link rel="canonical" href="/tags/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><h1 class="section-title">标签</h1><div class="cloud-list"><a class="cloud-item">Caddy <span class="cloud-count">2</span></a><a class="cloud-item">Cloudflare <span class="cloud-count">1</span></a><a class="cloud-item">Docker <span class="cloud-count">1</span></a><a class="cloud-item">Hugo <span class="cloud-count">1</span></a><a class="cloud-item">Nginx <span class="cloud-count">1</span></a><a class="cloud-item">SSL <span class="cloud-count">1</span></a><a class="cloud-item">TLS <span class="cloud-count">1</span></a><a class="cloud-item">VPS <span class="cloud-count">1</span></a></div></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF
 
-    # links/index.html
     cat > "$SITE_DIR/links/index.html" << HTMLEOF
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>友情链接 | 林一的技术笔记</title><link rel="canonical" href="/links/"><link rel="stylesheet" href="/assets/css/style.css"><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"></head><body><header class="site-header"><div class="container"><a href="/" class="site-title">林一的技术笔记</a><nav class="site-nav">${_nav}</nav></div></header><main class="main-content"><div class="container"><h1 class="section-title">友情链接</h1><a href="https://lruihao.cn/" target="_blank" rel="noopener" class="link-card"><div class="link-avatar">L</div><div class="link-info"><h3>LRUIHAO's Blog</h3><p>专注前端与全栈开发的技术博客</p></div></a><a href="https://www.ruanyifeng.com/blog/" target="_blank" rel="noopener" class="link-card"><div class="link-avatar">阮</div><div class="link-info"><h3>阮一峰的网络日志</h3><p>互联网、科技与人文的思考</p></div></a><a href="https://fly.io/blog/" target="_blank" rel="noopener" class="link-card"><div class="link-avatar">F</div><div class="link-info"><h3>Fly.io Blog</h3><p>边缘计算与容器化部署实践</p></div></a><a href="https://blog.cloudflare.com/" target="_blank" rel="noopener" class="link-card"><div class="link-avatar">CF</div><div class="link-info"><h3>Cloudflare Blog</h3><p>网络基础设施与安全前沿</p></div></a><div class="about-content" style="margin-top:2rem"><h2>申请友链</h2><p>如果你也有技术博客，欢迎交换友链。请通过邮件 <a href="mailto:linyi@example.com">linyi@example.com</a> 联系我。</p></div></div></main><footer class="site-footer"><div class="container">${_footer}</div></footer></body></html>
 HTMLEOF

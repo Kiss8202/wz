@@ -1,0 +1,48 @@
+name: Build Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack release archive
+        run: |
+          mkdir -p /tmp/reality-site
+          cp -r site/ Caddyfile docker-compose.yml deploy.sh /tmp/reality-site/
+          cd /tmp
+          tar czf reality-site.tar.gz reality-site/
+
+      - name: Generate tag
+        id: tag
+        run: |
+          TAG="v$(date +%Y%m%d-%H%M%S)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          body: |
+            Reality SNI 伪装站点部署包
+
+            一键部署命令：
+            ```bash
+            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/deploy.sh) -d 你的域名 -e 你的邮箱
+            ```
+          files: /tmp/reality-site.tar.gz
+
+      - name: Upload deploy.sh as release asset
+        run: |
+          # 同时上传 deploy.sh 到 latest，方便一键拉取
+          gh release upload ${{ steps.tag.outputs.tag }} deploy.sh --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
