@@ -32,22 +32,15 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
           body: |
-            Reality SNI 伪装站点部署包
+            Reality SNI 伪装站点 + sing-box 管理脚本
 
-            一键部署命令（独立模式）：
+            一键部署：
             ```bash
-            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh) \
-              -d 你的域名 -e 你的邮箱 -m standalone
+            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh)
             ```
 
-            与 sing-box 共存模式：
-            ```bash
-            bash <(curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install.sh) \
-              -d 你的域名 -e 你的邮箱 -m with-singbox
-            ```
+            主菜单选择 `[8] 伪装站点` 即可部署 Caddy 伪装站
           files: |
             /tmp/reality-site.tar.gz
             install.sh
-            modules/core.sh
-            modules/site.sh
-            modules/security.sh
+            modules/*.sh
