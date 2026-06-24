@@ -167,7 +167,7 @@ ${site_addr} {
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
-        Referrer-Policy no-referrer-when-downgrade
+        Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
@@ -430,7 +430,7 @@ SITE_ADDR="${DOMAIN}"
 cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
 ${SITE_ADDR} {
     tls ${EMAIL} {
-        protocols tls1.2 tls1.3
+        protocols tls1.3
         curves x25519
     }
     root * /usr/share/caddy
@@ -439,7 +439,7 @@ ${SITE_ADDR} {
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
-        Referrer-Policy no-referrer-when-downgrade
+        Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
@@ -460,22 +460,31 @@ ${SITE_ADDR} {
 }
 CADDYEOF
 
-# --- 复制站点文件 ---
-info "准备站点文件..."
-if [[ -d "$(dirname "$0")/site" ]]; then
-    info "从本地 site/ 目录复制..."
-    cp -r "$(dirname "$0")/site" "$DEPLOY_DIR/site"
+# --- 生成站点文件 ---
+info "生成站点文件（随机模板）..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "$SCRIPT_DIR/site-templates/generate.sh" ]]; then
+    # 本地有模板生成器，直接用
+    bash "$SCRIPT_DIR/site-templates/generate.sh" "$DEPLOY_DIR/site"
 else
-    info "本地无 site/ 目录，从 GitHub Release 下载..."
+    # 从 GitHub Release 下载模板生成器
+    info "下载站点模板生成器..."
     REPO_URL="https://github.com/Kiss8202/wz"
-    RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
-    if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
-        tar xzf /tmp/reality-site.tar.gz -C /tmp/
-        cp -r /tmp/reality-site/site "$DEPLOY_DIR/site"
-        rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
-        info "站点文件下载完成"
+    GEN_URL="${REPO_URL}/releases/latest/download/generate.sh"
+    if curl -fSL --connect-timeout 10 --max-time 60 -o /tmp/generate.sh "$GEN_URL" 2>/dev/null; then
+        bash /tmp/generate.sh "$DEPLOY_DIR/site"
+        rm -f /tmp/generate.sh
     else
-        die "下载失败，请手动将 site/ 目录放到 $DEPLOY_DIR/"
+        # 下载失败，尝试下载预生成的完整站点包
+        info "下载预生成站点包..."
+        RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
+        if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
+            tar xzf /tmp/reality-site.tar.gz -C /tmp/
+            cp -r /tmp/reality-site/site "$DEPLOY_DIR/site"
+            rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
+        else
+            die "下载失败，请手动将 site-templates/ 目录放到脚本同目录"
+        fi
     fi
 fi
 

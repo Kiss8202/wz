@@ -1,6 +1,6 @@
 your-domain.com {
     tls your-email@example.com {
-        protocols tls1.2 tls1.3
+        protocols tls1.3
         curves x25519
     }
     root * /usr/share/caddy
@@ -9,7 +9,7 @@ your-domain.com {
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
-        Referrer-Policy no-referrer-when-downgrade
+        Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
