@@ -3,17 +3,15 @@ version: '3.8'
 services:
   caddy:
     image: caddy:alpine
-    container_name: reality-site
+    container_name: my-site
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/usr/share/caddy:ro
+      - ./index.html:/usr/share/caddy/index.html:ro
       - caddy_data:/data
-      - caddy_config:/config
     restart: unless-stopped
 
 volumes:
   caddy_data:
-  caddy_config:

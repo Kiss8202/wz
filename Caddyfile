@@ -1,5 +1,8 @@
 your-domain.com {
-    tls your-email@example.com
+    tls your-email@example.com {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
     root * /usr/share/caddy
     file_server
 
@@ -10,17 +13,28 @@ your-domain.com {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 
-    # RSS 重定向
     redir /feed /atom.xml permanent
     redir /rss /atom.xml permanent
     redir /rss.xml /atom.xml permanent
-
-    # Sitemap 快捷路径
     redir /sitemap /sitemap.xml permanent
 
-    # 自定义错误页
     handle_errors {
         rewrite * /404.html
         file_server
     }
+}
+
+# 拒绝所有未配置域名的请求（防SNI探测）
+# 当有人用IP或错误域名访问时，直接断开连接
+:443 {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    abort
+}
+
+:80 {
+    # 对非本机域名的HTTP请求也直接断开
+    @notmyhost not host your-domain.com
+    abort @notmyhost
 }
