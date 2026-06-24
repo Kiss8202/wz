@@ -516,16 +516,24 @@ info "屏蔽 Shodan/Censys 等扫描器 IP..."
 SCAN_NETS=(
     # Shodan
     "198.51.44.0/24" "71.6.165.0/24" "71.6.146.0/24" "66.240.192.0/18" "74.82.160.0/19"
+    "104.248.0.0/16" "128.199.0.0/16" "138.68.0.0/16" "159.89.0.0/16"
+    "67.205.0.0/16" "68.183.0.0/16"
     # Censys
     "162.142.148.0/24" "167.248.133.0/24" "192.35.168.0/23"
+    "2600:2001:2002:9300::/56"
     # BinaryEdge
     "157.230.0.0/16" "167.71.0.0/16" "167.99.0.0/16"
     # Shadowserver
-    "184.105.247.0/24" "184.105.139.0/24"
+    "184.105.247.0/24" "184.105.139.0/24" "216.218.185.0/24"
+    # Project Sonar (Rapid7)
+    "71.6.128.0/17" "89.36.128.0/18" "185.42.12.0/24"
+    # Censys / Google Cloud 扫描
+    "35.192.0.0/12" "35.208.0.0/14"
 )
 for net in "${SCAN_NETS[@]}"; do
     iptables -I INPUT -s "$net" -j DROP 2>/dev/null || true
 done
+info "已屏蔽 ${#SCAN_NETS[@]} 个扫描器 IP 段"
 
 # --- 安装 fail2ban 防暴力扫描 ---
 if ! command -v fail2ban-server &>/dev/null; then
@@ -533,17 +541,19 @@ if ! command -v fail2ban-server &>/dev/null; then
     pkg_install fail2ban
 fi
 
-# 创建 fail2ban jail 配置
+# 创建 fail2ban jail 配置（兼容 Debian/CentOS）
 mkdir -p /etc/fail2ban/jail.d
-cat > /etc/fail2ban/jail.d/reality-site.conf << 'F2BEOF'
-[nginx-http-auth]
-enabled = false
+SSH_LOG="/var/log/auth.log"
+[[ -f /var/log/secure ]] && SSH_LOG="/var/log/secure"
+SYS_LOG="/var/log/syslog"
+[[ -f /var/log/messages ]] && SYS_LOG="/var/log/messages"
 
+cat > /etc/fail2ban/jail.d/reality-site.conf << F2BEOF
 [sshd]
 enabled = true
 port = ssh
 filter = sshd
-logpath = /var/log/auth.log
+logpath = ${SSH_LOG}
 maxretry = 3
 bantime = 3600
 findtime = 600
@@ -551,29 +561,57 @@ findtime = 600
 [port-scan]
 enabled = true
 filter = port-scan
-logpath = /var/log/syslog
-maxretry = 3
+logpath = ${SYS_LOG}
+maxretry = 5
 bantime = 86400
 findtime = 300
 F2BEOF
 
-# 创建端口扫描过滤器
+# 创建端口扫描过滤器（精确匹配内核日志格式）
 cat > /etc/fail2ban/filter.d/port-scan.conf << 'F2BEOF'
 [Definition]
-failregex = .*SRC=<HOST>.*DPT=\d+.*
+failregex = ^.*kernel:.*DROP.*SRC=<HOST>.*DPT=\d+.*$
+            ^.*kernel:.*REJECT.*SRC=<HOST>.*DPT=\d+.*$
 ignoreregex =
 F2BEOF
 
 systemctl enable fail2ban >/dev/null 2>&1 || true
-systemctl start fail2ban  >/dev/null 2>&1 || true
-info "fail2ban 已配置"
+systemctl restart fail2ban >/dev/null 2>&1 || true
+info "fail2ban 已配置 (SSH防暴力 + 端口扫描检测)"
 
-# --- iptables 防端口扫描 ---
+# --- iptables 防扫描规则 ---
 info "配置 iptables 防扫描规则..."
-iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP 2>/dev/null || true
-iptables -I INPUT -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j ACCEPT 2>/dev/null || true
+
+# 1. 连接跟踪优化（减少 conntrack 表溢出风险）
+sysctl -w net.netfilter.nf_conntrack_max=131072 >/dev/null 2>&1 || true
+sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=7200 >/dev/null 2>&1 || true
+
+# 2. 防 SYN Flood
+iptables -N SYN_FLOOD 2>/dev/null || true
+iptables -F SYN_FLOOD 2>/dev/null || true
+iptables -A SYN_FLOOD -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j RETURN 2>/dev/null || true
+iptables -A SYN_FLOOD -j DROP 2>/dev/null || true
+iptables -I INPUT -p tcp --syn -j SYN_FLOOD 2>/dev/null || true
+
+# 3. 单 IP 并发连接限制（防 CC / 暴力扫描）
+iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 30 --connlimit-mask 32 -j DROP 2>/dev/null || true
+
+# 4. 已建立连接放行
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT 2>/dev/null || true
+
+# 5. ICMP 速率限制（防 ping 扫描）
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 3 -j ACCEPT 2>/dev/null || true
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP 2>/dev/null || true
+
+# 6. 记录并丢弃非常用端口的扫描包（供 fail2ban 分析）
+iptables -N SCAN_LOG 2>/dev/null || true
+iptables -F SCAN_LOG 2>/dev/null || true
+iptables -A SCAN_LOG -m limit --limit 3/min -j LOG --log-prefix "DROP SCAN: " 2>/dev/null || true
+iptables -A SCAN_LOG -j DROP 2>/dev/null || true
+# 将非 80/${PORT}/SSH 端口的 NEW 连接记录
+SSH_PORT=$(grep -oP '^Port \K\d+' /etc/ssh/sshd_config 2>/dev/null | head -1 || true)
+[[ -z "$SSH_PORT" ]] && SSH_PORT="22"
+iptables -A INPUT -p tcp -m state --state NEW -m multiport ! --dports 80,${PORT},${SSH_PORT} -j SCAN_LOG 2>/dev/null || true
 
 # 保存 iptables 规则
 if command -v iptables-save &>/dev/null; then
