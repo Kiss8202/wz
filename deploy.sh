@@ -373,9 +373,9 @@ info "fail2ban 已配置"
 
 # --- iptables 防端口扫描 ---
 info "配置 iptables 防扫描规则..."
-# 限制新连接速率（每秒不超过 10 个，突发不超过 20）
+# 限制新连接速率（每秒不超过 30 个，突发不超过 50）
 iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP 2>/dev/null || true
-iptables -I INPUT -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -p tcp --syn -m limit --limit 30/s --limit-burst 50 -j ACCEPT 2>/dev/null || true
 
 # 只允许已建立的连接和相关连接
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
