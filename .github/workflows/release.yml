@@ -1,0 +1,60 @@
+name: Build Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack release archive
+        run: |
+          mkdir -p /tmp/reality-site
+          cp -r site-templates/ /tmp/reality-site/
+          cp deploy.sh Caddyfile docker-compose.yml /tmp/reality-site/
+          cd /tmp
+          tar czf reality-site.tar.gz reality-site/
+
+      - name: Generate tag
+        id: tag
+        run: |
+          TAG="v$(date +%Y%m%d-%H%M%S)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          body: |
+            Reality SNI 伪装站点一键部署脚本
+
+            一键部署：
+            ```bash
+            bash deploy.sh -d your-domain.com -e your@email.com
+            ```
+
+            指定端口：
+            ```bash
+            bash deploy.sh -d your-domain.com -e your@email.com -p 8443
+            ```
+
+            修改域名：
+            ```bash
+            bash deploy.sh -m new-domain.com
+            ```
+
+            卸载：
+            ```bash
+            bash deploy.sh -u
+            ```
+          files: |
+            /tmp/reality-site.tar.gz
+            deploy.sh
+            site-templates/generate.sh
