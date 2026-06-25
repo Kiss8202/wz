@@ -45,7 +45,7 @@ if [ "$TEMPLATE_NUM" -eq 1 ]; then
     BLOGGER_NAME="陈明远"
     BLOGGER_BIO="云原生架构师，专注于 Kubernetes、容器化和微服务领域。热爱开源，坚信基础设施即代码的力量。"
     BLOGGER_SKILLS="Go, Kubernetes, Docker, Helm, Istio, Prometheus, Terraform"
-    BLOGGER_EMAIL="chenmingyuan@example.com"
+    BLOGGER_EMAIL="chenmingyuan@outlook.com"
     BLOGGER_GITHUB="https://github.com/chenmingyuan"
     PRIMARY_COLOR="#2563eb"
     PRIMARY_LIGHT="#3b82f6"
@@ -75,15 +75,15 @@ if [ "$TEMPLATE_NUM" -eq 1 ]; then
         "gRPC 在微服务通信中的最佳实践|微服务间的通信效率直接影响系统性能。本文对比 gRPC 与 REST 的优劣，分享 gRPC 在生产环境中的流控、超时、重试和负载均衡策略。|微服务|gRPC 微服务 负载均衡|2025-08-15"
     )
 
-    ARTICLE_IMAGES=(
-        "kubernetes%20operator%20architecture%20diagram"
-        "golang%20concurrency%20goroutine%20channels"
-        "istio%20service%20mesh%20traffic%20flow"
-        "prometheus%20monitoring%20dashboard%20grafana"
-        "docker%20container%20multi%20stage%20build"
-        "argocd%20gitops%20continuous%20delivery"
-        "etcd%20distributed%20consensus%20raft"
-        "grpc%20microservices%20communication"
+    ARTICLE_SLUGS=(
+        "kubebuilder-custom-operator"
+        "go-concurrency-patterns"
+        "istio-traffic-management"
+        "prometheus-monitoring-setup"
+        "docker-multi-stage-build"
+        "argocd-gitops-practice"
+        "etcd-raft-deep-dive"
+        "grpc-microservices-best-practices"
     )
 
     # 写入文章正文到临时文件
@@ -403,10 +403,10 @@ BODYEOF
 
     # 友链数据
     FRIENDS=(
-        "K8s技术圈|https://k8s.example.com|专注K8s技术分享|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=kubernetes%20logo%20blue&image_size=landscape_16_9"
-        "Go语言中文网|https://golang.example.com|Go语言技术社区|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=golang%20mascot%20blue&image_size=landscape_16_9"
-        "云原生实验室|https://cloudnative.example.com|云原生技术探索|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cloud%20native%20landscape&image_size=landscape_16_9"
-        "DevOps之路|https://devops.example.com|DevOps实践分享|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=devops%20pipeline&image_size=landscape_16_9"
+        "K8s技术圈|https://kubernetes.io|Kubernetes官方文档|https://picsum.photos/seed/k8s-friend/60/60"
+        "Go语言中文网|https://go.dev|Go语言官方网站|https://picsum.photos/seed/golang-friend/60/60"
+        "云原生实验室|https://www.cncf.io|云原生基金会|https://picsum.photos/seed/cncf-friend/60/60"
+        "DevOps之路|https://stackoverflow.com|开发者问答社区|https://picsum.photos/seed/devops-friend/60/60"
     )
 
 # 模板2: Python/数据分析/机器学习 - 紫色主题
@@ -415,7 +415,7 @@ elif [ "$TEMPLATE_NUM" -eq 2 ]; then
     BLOGGER_NAME="林晓薇"
     BLOGGER_BIO="数据科学家，专注于机器学习与数据可视化。相信数据中蕴藏着改变世界的力量，致力于让复杂的数据变得可理解。"
     BLOGGER_SKILLS="Python, PyTorch, Pandas, Scikit-learn, Matplotlib, SQL, Spark"
-    BLOGGER_EMAIL="linxiaowei@example.com"
+    BLOGGER_EMAIL="linxiaowei@outlook.com"
     BLOGGER_GITHUB="https://github.com/linxiaowei"
     PRIMARY_COLOR="#7c3aed"
     PRIMARY_LIGHT="#8b5cf6"
@@ -444,15 +444,15 @@ elif [ "$TEMPLATE_NUM" -eq 2 ]; then
         "Spark 大规模数据处理最佳实践|当数据量超过单机处理能力时，Spark 是首选方案。本文分享 Spark 在生产环境中的调优经验，包括内存管理、数据倾斜处理和广播变量优化。|数据分析|Spark Python 大数据 性能调优|2025-08-10"
     )
 
-    ARTICLE_IMAGES=(
-        "transformer%20neural%20network%20architecture"
-        "pandas%20dataframe%20data%20cleaning"
-        "pytorch%20image%20segmentation%20unet"
-        "feature%20engineering%20machine%20learning"
-        "matplotlib%20seaborn%20data%20visualization"
-        "time%20series%20forecasting%20chart"
-        "recommendation%20system%20deep%20learning"
-        "apache%20spark%20big%20data%20processing"
+    ARTICLE_SLUGS=(
+        "transformer-chinese-text-classification"
+        "pandas-data-cleaning-tips"
+        "pytorch-image-segmentation"
+        "feature-engineering-art"
+        "matplotlib-seaborn-advanced-viz"
+        "time-series-arima-prophet"
+        "recommendation-system-practice"
+        "spark-big-data-best-practices"
     )
 
     cat > "$BODY_DIR/0.html" << 'BODYEOF'
@@ -766,10 +766,10 @@ spark.conf.set("spark.memory.storageFraction", "0.3")</code></pre>
 BODYEOF
 
     FRIENDS=(
-        "Python数据之道|https://pydata.example.com|Python数据分析社区|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=python%20data%20science%20purple&image_size=landscape_16_9"
-        "机器学习笔记|https://mlnotes.example.com|ML学习笔记分享|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=machine%20learning%20neural%20network&image_size=landscape_16_9"
-        "数据可视化工坊|https://dataviz.example.com|数据可视化灵感|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=data%20visualization%20chart&image_size=landscape_16_9"
-        "深度学习前沿|https://dlfront.example.com|深度学习论文解读|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=deep%20learning%20ai&image_size=landscape_16_9"
+        "Python数据之道|https://realpython.com|Python实战教程|https://picsum.photos/seed/realpython-friend/60/60"
+        "机器学习笔记|https://python.org|Python官方网站|https://picsum.photos/seed/python-friend/60/60"
+        "数据可视化工坊|https://stackoverflow.com|开发者问答社区|https://picsum.photos/seed/dataviz-friend/60/60"
+        "深度学习前沿|https://github.com|开源代码托管|https://picsum.photos/seed/github-friend/60/60"
     )
 
 # 模板3: 前端/React/TypeScript - 绿色主题
@@ -778,7 +778,7 @@ elif [ "$TEMPLATE_NUM" -eq 3 ]; then
     BLOGGER_NAME="苏逸凡"
     BLOGGER_BIO="前端架构师，React 核心贡献者。痴迷于像素级的完美，相信好的用户体验来自对细节的极致追求。"
     BLOGGER_SKILLS="React, TypeScript, Next.js, Tailwind CSS, Webpack, Node.js"
-    BLOGGER_EMAIL="suyifan@example.com"
+    BLOGGER_EMAIL="suyifan@outlook.com"
     BLOGGER_GITHUB="https://github.com/suyifan"
     PRIMARY_COLOR="#16a34a"
     PRIMARY_LIGHT="#22c55e"
@@ -807,15 +807,15 @@ elif [ "$TEMPLATE_NUM" -eq 3 ]; then
         "CSS 容器查询：响应式设计的新范式|容器查询让组件可以根据自身容器大小响应式调整，彻底改变了响应式设计的思路。本文全面介绍容器查询的语法和最佳实践。|CSS|CSS 容器查询 响应式 组件化|2025-08-08"
     )
 
-    ARTICLE_IMAGES=(
-        "react%2019%20server%20components%20architecture"
-        "typescript%20type%20system%20advanced"
-        "nextjs%20app%20router%20architecture"
-        "tailwind%20css%20design%20system"
-        "web%20performance%20optimization%20metrics"
-        "vite%20build%20tool%20plugin"
-        "micro%20frontend%20module%20federation"
-        "css%20container%20queries%20responsive"
+    ARTICLE_SLUGS=(
+        "react-19-features"
+        "typescript-type-gymnastics"
+        "nextjs-app-router-architecture"
+        "tailwind-css-in-practice"
+        "frontend-performance-optimization"
+        "vite-plugin-development"
+        "micro-frontend-module-federation"
+        "css-container-queries"
     )
 
     cat > "$BODY_DIR/0.html" << 'BODYEOF'
@@ -1253,10 +1253,10 @@ BODYEOF
 BODYEOF
 
     FRIENDS=(
-        "React中文社区|https://react-cn.example.com|React技术交流|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=react%20javascript%20framework&image_size=landscape_16_9"
-        "CSS魔法|https://cssmagic.example.com|CSS创意实验|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=css%20art%20creative%20design&image_size=landscape_16_9"
-        "前端早读课|https://fed.example.com|前端技术前沿|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=frontend%20development%20code&image_size=landscape_16_9"
-        "TypeScript修炼|https://ts.example.com|TypeScript进阶|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=typescript%20code%20editor&image_size=landscape_16_9"
+        "React中文社区|https://ruanyifeng.com|阮一峰的网络日志|https://picsum.photos/seed/ruanyifeng-friend/60/60"
+        "CSS魔法|https://css-tricks.com|CSS技巧与教程|https://picsum.photos/seed/css-tricks-friend/60/60"
+        "前端早读课|https://smashingmagazine.com|前端设计与开发|https://picsum.photos/seed/smashing-friend/60/60"
+        "TypeScript修炼|https://dev.to|开发者社区|https://picsum.photos/seed/devto-friend/60/60"
     )
 
 # 模板4: Rust/系统编程/嵌入式 - 暗色主题
@@ -1265,7 +1265,7 @@ elif [ "$TEMPLATE_NUM" -eq 4 ]; then
     BLOGGER_NAME="赵瀚文"
     BLOGGER_BIO="系统程序员，Rust 布道者。痴迷于底层实现细节，相信对硬件的理解是写出高效软件的前提。"
     BLOGGER_SKILLS="Rust, C, 汇编, Linux内核, 嵌入式, WebAssembly"
-    BLOGGER_EMAIL="zhaohanwen@example.com"
+    BLOGGER_EMAIL="zhaohanwen@outlook.com"
     BLOGGER_GITHUB="https://github.com/zhaohanwen"
     PRIMARY_COLOR="#f97316"
     PRIMARY_LIGHT="#fb923c"
@@ -1294,15 +1294,15 @@ elif [ "$TEMPLATE_NUM" -eq 4 ]; then
         "Rust SIMD 编程：从手动向量化到便携式抽象|SIMD 指令可以大幅提升数据并行计算的吞吐量。本文从手写 intrinsics 到使用 std::simd，探索 Rust 中不同层次的 SIMD 编程方法。|性能优化|Rust SIMD 向量化 性能|2025-08-11"
     )
 
-    ARTICLE_IMAGES=(
-        "rust%20async%20runtime%20tokio%20future"
-        "rust%20linux%20kernel%20module%20development"
-        "rust%20embedded%20stm32%20microcontroller"
-        "rust%20ffi%20c%20interoperability"
-        "rust%20webassembly%20browser%20performance"
-        "rust%20memory%20model%20stack%20heap"
-        "ebpf%20network%20observability%20linux"
-        "rust%20simd%20vectorization%20performance"
+    ARTICLE_SLUGS=(
+        "rust-async-runtime-tokio"
+        "rust-linux-kernel-module"
+        "rust-embedded-nostd-stm32"
+        "rust-ffi-c-interop-guide"
+        "rust-webassembly-performance"
+        "rust-memory-model-deep-dive"
+        "ebpf-rust-network-observability"
+        "rust-simd-vectorization"
     )
 
     cat > "$BODY_DIR/0.html" << 'BODYEOF'
@@ -1746,10 +1746,10 @@ unsafe fn dot_product_avx2(a: &amp;[f32], b: &amp;[f32]) -&gt; f32 {
 BODYEOF
 
     FRIENDS=(
-        "Rust语言中文社区|https://rust-cn.example.com|Rust技术交流|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=rust%20programming%20language%20crab&image_size=landscape_16_9"
-        "Linux内核探秘|https://linuxkernel.example.com|内核技术深潜|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=linux%20kernel%20tux%20penguin&image_size=landscape_16_9"
-        "嵌入式杂谈|https://embedded.example.com|嵌入式开发笔记|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=embedded%20system%20circuit%20board&image_size=landscape_16_9"
-        "系统编程志|https://sysprog.example.com|底层编程探索|https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=systems%20programming%20low%20level&image_size=landscape_16_9"
+        "Rust语言中文社区|https://rust-lang.org|Rust编程语言官网|https://picsum.photos/seed/rustlang-friend/60/60"
+        "Linux内核探秘|https://tokio.rs|Tokio异步运行时|https://picsum.photos/seed/tokio-friend/60/60"
+        "嵌入式杂谈|https://golang.google.cn|Go语言中文站|https://picsum.photos/seed/golang-cn-friend/60/60"
+        "系统编程志|https://hackernews.ycombinator.com|Hacker News|https://picsum.photos/seed/hackernews-friend/60/60"
     )
 fi
 
@@ -1973,6 +1973,15 @@ img {
     width: 100%;
     height: 200px;
     object-fit: cover;
+}
+
+.img-fallback .article-card-image {
+    display: none;
+}
+
+.article-card.img-fallback {
+    background: linear-gradient(135deg, var(--primary-light), var(--accent));
+    min-height: 200px;
 }
 
 .article-card-body {
@@ -2496,6 +2505,45 @@ img {
     color: #fff;
 }
 
+/* ===== 回到顶部 ===== */
+.back-to-top {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-hover);
+    z-index: 99;
+    transition: background 0.2s, transform 0.2s;
+}
+.back-to-top:hover {
+    background: var(--primary-dark);
+    transform: scale(1.1);
+}
+
+/* ===== 文章正文图片 ===== */
+.post-content figure {
+    margin: 1.5em 0;
+    text-align: center;
+}
+.post-content figure img {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    max-width: 100%;
+    height: auto;
+}
+.post-content figcaption {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 0.5em;
+}
+
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
     .nav-toggle {
@@ -2562,6 +2610,12 @@ generate_index() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2578,22 +2632,28 @@ INDEX_HEAD
     local count=0
     for article in "${ARTICLES[@]}"; do
         IFS='|' read -r title excerpt category tags date <<< "$article"
-        local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
-        local image_prompt="${ARTICLE_IMAGES[$count]}"
+        local slug="${ARTICLE_SLUGS[$count]}"
         local tag_list=""
         for tag in $tags; do
             tag_list="${tag_list}<span class=\"tag\">${tag}</span>"
         done
 
+        # 阅读时间估算
+        local read_time=$(( (${#excerpt} / 400) + 1 ))
+        if [ "$read_time" -eq 0 ]; then
+            read_time=1
+        fi
+
         cat >> "$output_file" << ARTICLE_CARD
 
             <article class="article-card">
-                <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${image_prompt}&image_size=landscape_16_9" alt="${title}" class="article-card-image" loading="lazy">
+                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" class="article-card-image" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('img-fallback')">
                 <div class="article-card-body">
                     <h2><a href="posts/${slug}.html">${title}</a></h2>
                     <div class="article-meta">
                         <span>&#x1F4C5; ${date}</span>
                         <span>&#x1F4C1; ${category}</span>
+                        <span>&#x23F1; 约 ${read_time} 分钟</span>
                     </div>
                     <p class="article-excerpt">${excerpt}</p>
                     <div class="article-tags">${tag_list}</div>
@@ -2616,6 +2676,10 @@ ARTICLE_CARD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 PAGINATION
@@ -2626,7 +2690,6 @@ PAGINATION
 # ============================================================
 generate_about() {
     local output_file="$OUTPUT_DIR/about.html"
-    local avatar_prompt="portrait%20avatar%20professional"
 
     cat > "$output_file" << ABOUT_HEAD
 <!DOCTYPE html>
@@ -2635,6 +2698,12 @@ generate_about() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>关于 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="关于 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/about.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2642,7 +2711,7 @@ $(generate_nav "关于")
     <main class="main-content">
         <div class="container">
             <div class="about-card">
-                <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${avatar_prompt}&image_size=landscape_16_9" alt="${BLOGGER_NAME}" class="about-avatar">
+                <img src="https://picsum.photos/seed/avatar-${BLOGGER_NAME}/120/120" alt="${BLOGGER_NAME}" class="about-avatar" onerror="this.style.display='none'">
                 <h2 class="about-name">${BLOGGER_NAME}</h2>
                 <p class="about-bio">${BLOGGER_BIO}</p>
 
@@ -2670,6 +2739,10 @@ ABOUT_HEAD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 ABOUT_FOOT
@@ -2688,6 +2761,12 @@ generate_archives() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>归档 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="归档 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/archives.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2703,10 +2782,11 @@ ARCH_HEAD
 
     local current_year=""
     local current_month=""
+    local arch_idx=0
 
     for article in "${ARTICLES[@]}"; do
         IFS='|' read -r title excerpt category tags date <<< "$article"
-        local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+        local slug="${ARTICLE_SLUGS[$arch_idx]}"
         local year="${date%%-*}"
         local rest="${date#*-}"
         local month="${rest%%-*}"
@@ -2723,6 +2803,7 @@ ARCH_HEAD
         fi
 
         echo "                <div class=\"timeline-item\"><span class=\"timeline-date\">${date}</span><a href=\"posts/${slug}.html\">${title}</a></div>" >> "$output_file"
+        arch_idx=$((arch_idx + 1))
     done
 
     cat >> "$output_file" << ARCH_FOOT
@@ -2730,6 +2811,10 @@ ARCH_HEAD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 ARCH_FOOT
@@ -2748,6 +2833,12 @@ generate_categories() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>分类 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="分类 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/categories.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2764,14 +2855,16 @@ CAT_HEAD
     for cat in "${CATEGORIES[@]}"; do
         local cat_count=0
         local cat_articles=""
+        local cat_idx=0
 
         for article in "${ARTICLES[@]}"; do
             IFS='|' read -r title excerpt category tags date <<< "$article"
             if [ "$category" = "$cat" ]; then
-                local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+                local slug="${ARTICLE_SLUGS[$cat_idx]}"
                 cat_count=$((cat_count + 1))
                 cat_articles="${cat_articles}<li><a href=\"posts/${slug}.html\">${title}</a></li>"
             fi
+            cat_idx=$((cat_idx + 1))
         done
 
         if [ "$cat_count" -gt 0 ]; then
@@ -2792,6 +2885,10 @@ CAT_CARD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 CAT_FOOT
@@ -2810,6 +2907,12 @@ generate_tags() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>标签 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="标签 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/tags.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2838,6 +2941,10 @@ TAG_HEAD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 TAG_FOOT
@@ -2856,6 +2963,12 @@ generate_friends() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>友链 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="友链 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/friends.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -2873,7 +2986,7 @@ FRIEND_HEAD
         IFS='|' read -r name url desc avatar <<< "$friend"
         cat >> "$output_file" << FRIEND_CARD
                 <div class="friend-card">
-                    <img src="${avatar}" alt="${name}" class="friend-avatar" loading="lazy">
+                    <img src="${avatar}" alt="${name}" class="friend-avatar" loading="lazy" onerror="this.style.display='none'">
                     <div class="friend-info">
                         <h3><a href="${url}" target="_blank">${name}</a></h3>
                         <p>${desc}</p>
@@ -2887,6 +3000,10 @@ FRIEND_CARD
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 FRIEND_FOOT
@@ -2901,15 +3018,17 @@ generate_posts() {
 
     for article in "${ARTICLES[@]}"; do
         IFS='|' read -r title excerpt category tags date <<< "$article"
-        local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+        local slug="${ARTICLE_SLUGS[$idx]}"
         local output_file="$OUTPUT_DIR/posts/${slug}.html"
-        local image_prompt="${ARTICLE_IMAGES[$idx]}"
 
         # 读取文章正文
         local body=""
         if [ -f "$BODY_DIR/${idx}.html" ]; then
             body=$(cat "$BODY_DIR/${idx}.html")
         fi
+
+        # 阅读时间估算（基于正文长度）
+        local read_time=$(( ($(wc -c < "$BODY_DIR/${idx}.html" 2>/dev/null || echo 200) / 600) + 1 ))
 
         # 上下篇导航
         local prev_nav=""
@@ -2918,14 +3037,14 @@ generate_posts() {
         if [ "$idx" -gt 0 ]; then
             local prev_article="${ARTICLES[$((idx - 1))]}"
             IFS='|' read -r prev_title _ _ _ _ <<< "$prev_article"
-            local prev_slug=$(echo "$prev_title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+            local prev_slug="${ARTICLE_SLUGS[$((idx - 1))]}"
             prev_nav="<div class=\"post-nav-item prev\"><div class=\"post-nav-label\">&#x2190; 上一篇</div><a href=\"${prev_slug}.html\" class=\"post-nav-title\">${prev_title}</a></div>"
         fi
 
         if [ "$idx" -lt $((total - 1)) ]; then
             local next_article="${ARTICLES[$((idx + 1))]}"
             IFS='|' read -r next_title _ _ _ _ <<< "$next_article"
-            local next_slug=$(echo "$next_title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+            local next_slug="${ARTICLE_SLUGS[$((idx + 1))]}"
             next_nav="<div class=\"post-nav-item next\"><div class=\"post-nav-label\">下一篇 &#x2192;</div><a href=\"${next_slug}.html\" class=\"post-nav-title\">${next_title}</a></div>"
         fi
 
@@ -2943,6 +3062,12 @@ generate_posts() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title} - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="${title}">
+    <meta property="og:description" content="${excerpt}">
+    <meta property="og:url" content="https://__DOMAIN__/posts/${slug}.html">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -2969,12 +3094,16 @@ generate_posts() {
                 <div class="article-meta" style="margin-bottom:24px;">
                     <span>&#x1F4C5; ${date}</span>
                     <span>&#x1F4C1; ${category}</span>
+                    <span>&#x23F1; 约 ${read_time} 分钟</span>
                 </div>
-                <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${image_prompt}&image_size=landscape_16_9" alt="${title}" style="width:100%;border-radius:var(--radius);margin-bottom:24px;">
+                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" style="width:100%;border-radius:var(--radius);margin-bottom:24px;" onerror="this.style.display='none'">
 POST_HEAD
 
-        # 写入正文内容
-        cat "$BODY_DIR/${idx}.html" >> "$output_file"
+        # 在文章正文中插入图片（在第二个 </p> 后）
+        local post_body_file="$BODY_DIR/${idx}.html"
+        local tmp_body_file="$BODY_DIR/${idx}_img.html"
+        awk -v img='<figure><img src="https://picsum.photos/seed/'${slug}'-fig1/720/400" alt="示意图" loading="lazy"><figcaption>示意图</figcaption></figure>' 'BEGIN{c=0} /<\/p>/{c++; if(c==2){print; print img; next}} {print}' "$post_body_file" > "$tmp_body_file"
+        cat "$tmp_body_file" >> "$output_file"
 
         cat >> "$output_file" << POST_FOOT
                 <div class="article-tags" style="margin-top:24px;">
@@ -2992,6 +3121,10 @@ POST_HEAD
             <p>&copy; $(date +%Y) ${BLOG_NAME} | 由 ${BLOGGER_NAME} 用 &#x2764;&#xFE0F; 构建</p>
         </div>
     </footer>
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 POST_FOOT
@@ -3013,6 +3146,12 @@ generate_404() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>404 - 页面未找到 - ${BLOG_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="404 - 页面未找到 - ${BLOG_NAME}">
+    <meta property="og:description" content="${BLOGGER_BIO}">
+    <meta property="og:url" content="https://__DOMAIN__/">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -3027,6 +3166,10 @@ $(generate_nav "首页")
         </div>
     </main>
 $(generate_footer)
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">&#x2191;</button>
+<script>
+(function(){var b=document.querySelector('.back-to-top');window.addEventListener('scroll',function(){b.style.display=window.scrollY>300?'block':'none'});b.style.display='none'})()
+</script>
 </body>
 </html>
 NOTFOUND_HTML
@@ -3042,48 +3185,50 @@ generate_sitemap() {
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-        <loc>__DOMAIN__/index.html</loc>
+        <loc>https://__DOMAIN__/index.html</loc>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
     </url>
     <url>
-        <loc>__DOMAIN__/about.html</loc>
+        <loc>https://__DOMAIN__/about.html</loc>
         <changefreq>monthly</changefreq>
         <priority>0.6</priority>
     </url>
     <url>
-        <loc>__DOMAIN__/archives.html</loc>
+        <loc>https://__DOMAIN__/archives.html</loc>
         <changefreq>weekly</changefreq>
         <priority>0.7</priority>
     </url>
     <url>
-        <loc>__DOMAIN__/categories.html</loc>
+        <loc>https://__DOMAIN__/categories.html</loc>
         <changefreq>weekly</changefreq>
         <priority>0.7</priority>
     </url>
     <url>
-        <loc>__DOMAIN__/tags.html</loc>
+        <loc>https://__DOMAIN__/tags.html</loc>
         <changefreq>weekly</changefreq>
         <priority>0.7</priority>
     </url>
     <url>
-        <loc>__DOMAIN__/friends.html</loc>
+        <loc>https://__DOMAIN__/friends.html</loc>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
     </url>
 SITEMAP_HEAD
 
+    local sitemap_idx=0
     for article in "${ARTICLES[@]}"; do
         IFS='|' read -r title excerpt category tags date <<< "$article"
-        local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+        local slug="${ARTICLE_SLUGS[$sitemap_idx]}"
         cat >> "$output_file" << SITEMAP_URL
     <url>
-        <loc>__DOMAIN__/posts/${slug}.html</loc>
+        <loc>https://__DOMAIN__/posts/${slug}.html</loc>
         <lastmod>${date}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
 SITEMAP_URL
+        sitemap_idx=$((sitemap_idx + 1))
     done
 
     echo "</urlset>" >> "$output_file"
@@ -3096,7 +3241,7 @@ generate_robots() {
     cat > "$OUTPUT_DIR/robots.txt" << ROBOTS
 User-agent: *
 Allow: /
-Sitemap: __DOMAIN__/sitemap.xml
+Sitemap: https://__DOMAIN__/sitemap.xml
 ROBOTS
 }
 
@@ -3105,38 +3250,43 @@ ROBOTS
 # ============================================================
 generate_atom() {
     local output_file="$OUTPUT_DIR/atom.xml"
-    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    # 使用最新文章的发布时间作为 feed updated
+    local first_article="${ARTICLES[0]}"
+    IFS='|' read -r _ _ _ _ first_date <<< "$first_article"
+    local feed_updated="${first_date}T00:00:00Z"
 
     cat > "$output_file" << ATOM_HEAD
 <?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
     <title>${BLOG_NAME}</title>
     <subtitle>${BLOGGER_BIO}</subtitle>
-    <link href="__DOMAIN__/atom.xml" rel="self"/>
-    <link href="__DOMAIN__/" rel="alternate"/>
-    <id>__DOMAIN__/</id>
-    <updated>${now}</updated>
+    <link href="https://__DOMAIN__/atom.xml" rel="self"/>
+    <link href="https://__DOMAIN__/" rel="alternate"/>
+    <id>https://__DOMAIN__/</id>
+    <updated>${feed_updated}</updated>
     <author>
         <name>${BLOGGER_NAME}</name>
         <email>${BLOGGER_EMAIL}</email>
     </author>
 ATOM_HEAD
 
+    local atom_idx=0
     for article in "${ARTICLES[@]}"; do
         IFS='|' read -r title excerpt category tags date <<< "$article"
-        local slug=$(echo "$title" | tr ' ' '-' | sed 's/[[:punct:]]//g' | head -c 50)
+        local slug="${ARTICLE_SLUGS[$atom_idx]}"
         local date_iso="${date}T00:00:00Z"
         cat >> "$output_file" << ATOM_ENTRY
     <entry>
         <title>${title}</title>
-        <link href="__DOMAIN__/posts/${slug}.html" rel="alternate"/>
-        <id>__DOMAIN__/posts/${slug}.html</id>
+        <link href="https://__DOMAIN__/posts/${slug}.html" rel="alternate"/>
+        <id>https://__DOMAIN__/posts/${slug}.html</id>
         <published>${date_iso}</published>
         <updated>${date_iso}</updated>
         <summary>${excerpt}</summary>
         <category term="${category}"/>
     </entry>
 ATOM_ENTRY
+        atom_idx=$((atom_idx + 1))
     done
 
     echo "</feed>" >> "$output_file"
