@@ -460,23 +460,49 @@ ${SITE_ADDR} {
 }
 CADDYEOF
 
-# --- 复制站点文件 ---
-info "准备站点文件..."
-if [[ -d "$(dirname "$0")/site" ]]; then
-    info "从本地 site/ 目录复制..."
-    cp -r "$(dirname "$0")/site" "$DEPLOY_DIR/site"
-else
-    info "本地无 site/ 目录，从 GitHub Release 下载..."
+# --- 生成站点文件 ---
+info "生成站点文件（随机模板）..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SITE_GENERATED=false
+
+# 方式1: 本地有模板生成器
+if [[ -f "$SCRIPT_DIR/site-templates/generate.sh" ]]; then
+    bash "$SCRIPT_DIR/site-templates/generate.sh" "$DEPLOY_DIR/site"
+    SITE_GENERATED=true
+fi
+
+# 方式2: 从 GitHub Release 下载 generate.sh
+if [[ "$SITE_GENERATED" == "false" ]]; then
     REPO_URL="https://github.com/Kiss8202/wz"
+    GEN_URL="${REPO_URL}/releases/latest/download/generate.sh"
+    if curl -fSL --connect-timeout 10 --max-time 60 -o /tmp/generate.sh "$GEN_URL" 2>/dev/null; then
+        bash /tmp/generate.sh "$DEPLOY_DIR/site"
+        rm -f /tmp/generate.sh
+        SITE_GENERATED=true
+    fi
+fi
+
+# 方式3: 从 Release 完整包中提取 generate.sh
+if [[ "$SITE_GENERATED" == "false" ]]; then
+    info "下载完整站点包..."
     RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
     if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
         tar xzf /tmp/reality-site.tar.gz -C /tmp/
-        cp -r /tmp/reality-site/site "$DEPLOY_DIR/site"
+        if [[ -f /tmp/reality-site/site-templates/generate.sh ]]; then
+            bash /tmp/reality-site/site-templates/generate.sh "$DEPLOY_DIR/site"
+        elif [[ -d /tmp/reality-site/site ]]; then
+            cp -r /tmp/reality-site/site "$DEPLOY_DIR/site"
+        else
+            rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
+            die "站点包格式异常，无法生成站点"
+        fi
         rm -rf /tmp/reality-site /tmp/reality-site.tar.gz
-        info "站点文件下载完成"
-    else
-        die "下载失败，请手动将 site/ 目录放到 $DEPLOY_DIR/"
+        SITE_GENERATED=true
     fi
+fi
+
+if [[ "$SITE_GENERATED" == "false" ]]; then
+    die "站点文件生成失败，请手动将 site-templates/ 目录放到脚本同目录"
 fi
 
 # --- 替换域名占位符 ---
