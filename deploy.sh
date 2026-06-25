@@ -49,6 +49,19 @@ ${BOLD}Reality SNI 伪装站点 一键部署脚本${NC}
 EOF
 }
 
+validate_domain() {
+    local dom="$1"
+    if ! [[ "$dom" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$ ]]; then
+        die "域名格式无效: $dom（只允许字母、数字、连字符、点）"
+    fi
+}
+validate_email() {
+    local em="$1"
+    if ! [[ "$em" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        die "邮箱格式无效: $em"
+    fi
+}
+
 while getopts "d:e:p:m:uh" opt; do
     case $opt in
         d) DOMAIN="$OPTARG" ;;
@@ -63,6 +76,7 @@ done
 
 # ==================== 卸载逻辑 ====================
 uninstall() {
+    detect_os
     echo -e "${CYAN}========================================${NC}"
     echo -e "${CYAN}  正在卸载 Reality 伪装站点...${NC}"
     echo -e "${CYAN}========================================${NC}"
@@ -79,9 +93,43 @@ uninstall() {
 
     docker volume rm reality-site_caddy_data reality-site_caddy_config >/dev/null 2>&1 || true
 
+    # 清理 iptables 规则
+    info "清理 iptables 规则..."
+    SCAN_NETS_CLEAN=(
+        "198.51.44.0/24" "71.6.165.0/24" "71.6.146.0/24" "66.240.192.0/18" "74.82.160.0/19"
+        "162.142.148.0/24" "167.248.133.0/24" "192.35.168.0/23"
+        "157.230.0.0/16" "167.71.0.0/16" "167.99.0.0/16"
+        "184.105.247.0/24" "184.105.139.0/24"
+        "5.188.86.0/24" "5.45.0.0/16" "46.161.0.0/16" "77.247.0.0/16"
+        "185.220.0.0/16" "193.233.0.0/16" "23.129.0.0/16"
+        "45.33.0.0/17" "45.56.0.0/17"
+    )
+    for net in "${SCAN_NETS_CLEAN[@]}"; do
+        iptables -D INPUT -s "$net" -j DROP 2>/dev/null || true
+    done
+
+    # 清理 fail2ban 配置
+    info "清理 fail2ban 配置..."
+    rm -f /etc/fail2ban/jail.d/reality-site.conf
+    rm -f /etc/fail2ban/filter.d/port-scan.conf
+    systemctl restart fail2ban 2>/dev/null || true
+
+    # 保存 iptables
+    if command -v iptables-save &>/dev/null; then
+        case "$OS_ID" in
+            ubuntu|debian) iptables-save > /etc/iptables/rules.v4 2>/dev/null || true ;;
+            centos|rhel|fedora|rocky|almalinux) iptables-save > /etc/sysconfig/iptables 2>/dev/null || true ;;
+        esac
+    fi
+
     info "卸载完成"
     exit 0
 }
+
+# ==================== 检查 root ====================
+if [[ $EUID -ne 0 ]]; then
+    die "请使用 root 用户运行: sudo bash deploy.sh"
+fi
 
 [[ "$ACTION" == "uninstall" ]] && uninstall
 
@@ -100,14 +148,22 @@ modify_domain() {
     # 获取当前域名（去掉端口部分）
     local first_line
     first_line=$(head -1 "$DEPLOY_DIR/Caddyfile")
-    OLD_DOMAIN=$(echo "$first_line" | sed 's/:[0-9]*$//' | sed 's/ {//')
+    OLD_DOMAIN=$(echo "$first_line" | awk '{print $1}' | sed 's/:[0-9]*$//')
     if [[ -z "$OLD_DOMAIN" ]]; then
-        OLD_DOMAIN=$(echo "$first_line" | awk '{print $1}' | sed 's/:[0-9]*$//')
+        die "无法从 Caddyfile 解析当前域名"
     fi
 
     # 获取当前端口
     OLD_PORT=$(echo "$first_line" | grep -oP ':\K[0-9]+' | head -1 || true)
     [[ -z "$OLD_PORT" ]] && OLD_PORT="443"
+
+    # 邮箱提取
+    OLD_EMAIL=$(grep -oP 'tls\s+\K\S+' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 || true)
+    OLD_EMAIL="${OLD_EMAIL%\{}"
+    OLD_EMAIL="${OLD_EMAIL// /}"
+    if [[ -z "$OLD_EMAIL" ]]; then
+        warn "无法从 Caddyfile 解析当前邮箱"
+    fi
 
     # 交互式输入新域名
     if [[ -z "$NEW_DOMAIN" ]]; then
@@ -118,13 +174,13 @@ modify_domain() {
     if [[ -z "$NEW_DOMAIN" ]]; then
         die "新域名不能为空"
     fi
+    validate_domain "$NEW_DOMAIN"
 
     if [[ "$NEW_DOMAIN" == "$OLD_DOMAIN" ]]; then
         die "新域名与当前域名相同"
     fi
 
     # 询问是否同时修改邮箱
-    OLD_EMAIL=$(grep -oP 'tls \K\S+' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 || true)
     NEW_EMAIL="$OLD_EMAIL"
     echo ""
     info "当前邮箱: ${OLD_EMAIL}"
@@ -227,8 +283,8 @@ COMPOSEEOF
 
     info "重启 Caddy 容器..."
     cd "$DEPLOY_DIR"
-    docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
-    docker compose up -d 2>/dev/null || docker-compose up -d
+    $COMPOSE_CMD down 2>/dev/null || true
+    $COMPOSE_CMD up -d
 
     # 5. 等待新证书签发
     info "等待新域名 SSL 证书签发..."
@@ -276,11 +332,6 @@ COMPOSEEOF
 
 [[ "$ACTION" == "modify" ]] && modify_domain
 
-# ==================== 检查 root ====================
-if [[ $EUID -ne 0 ]]; then
-    die "请使用 root 用户运行: sudo bash deploy.sh"
-fi
-
 # ==================== 交互式输入（如果未通过参数传入） ====================
 echo -e "${CYAN}========================================${NC}"
 echo -e "${CYAN}  Reality SNI 伪装站点 一键部署${NC}"
@@ -304,6 +355,9 @@ if [[ -z "$PORT" ]]; then
     read -rp "请输入 HTTPS 端口 (留空默认 443): " PORT
     [[ -z "$PORT" ]] && PORT="443"
 fi
+
+validate_domain "$DOMAIN"
+validate_email "$EMAIL"
 
 if [[ -z "$DOMAIN" || -z "$EMAIL" ]]; then
     die "域名和邮箱不能为空"
@@ -339,8 +393,15 @@ pkg_install() {
             apt-get update -y >/dev/null 2>&1
             apt-get install -y "$@" >/dev/null 2>&1
             ;;
-        centos|rhel|fedora|rocky|almalinux)
-            yum install -y "$@" >/dev/null 2>&1 || dnf install -y "$@" >/dev/null 2>&1
+        fedora)
+            dnf install -y "$@" >/dev/null 2>&1
+            ;;
+        centos|rhel|rocky|almalinux)
+            if command -v dnf &>/dev/null; then
+                dnf install -y "$@" >/dev/null 2>&1
+            else
+                yum install -y "$@" >/dev/null 2>&1
+            fi
             ;;
         *)
             die "不支持的系统: $OS_ID"
@@ -361,6 +422,15 @@ if ! command -v docker &>/dev/null; then
     info "Docker 安装完成"
 else
     info "[2/8] Docker 已安装，跳过"
+fi
+
+# 检测 Docker Compose 命令
+if docker compose version &>/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
+    COMPOSE_CMD=""
 fi
 
 # 确保 docker compose 可用
@@ -421,6 +491,7 @@ fi
 # ==================== 步骤 5: 生成配置文件 ====================
 info "[5/8] 生成配置文件..."
 mkdir -p "$DEPLOY_DIR"
+chmod 700 "$DEPLOY_DIR"
 
 # --- Caddyfile ---
 # 443 端口不需要在域名后加端口，其他端口需要
@@ -487,6 +558,10 @@ if [[ "$SITE_GENERATED" == "false" ]]; then
     info "下载完整站点包..."
     RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
     if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
+        if tar tzf /tmp/reality-site.tar.gz 2>/dev/null | grep -qE '^\.\./|/\.\./'; then
+            rm -f /tmp/reality-site.tar.gz
+            die "站点包包含路径遍历条目，拒绝解压"
+        fi
         tar xzf /tmp/reality-site.tar.gz -C /tmp/
         if [[ -f /tmp/reality-site/site-templates/generate.sh ]]; then
             bash /tmp/reality-site/site-templates/generate.sh "$DEPLOY_DIR/site"
@@ -550,6 +625,7 @@ SCAN_NETS=(
     "184.105.247.0/24" "184.105.139.0/24"
 )
 for net in "${SCAN_NETS[@]}"; do
+    iptables -D INPUT -s "$net" -j DROP 2>/dev/null || true
     iptables -I INPUT -s "$net" -j DROP 2>/dev/null || true
 done
 
@@ -561,7 +637,16 @@ fi
 
 # 创建 fail2ban jail 配置
 mkdir -p /etc/fail2ban/jail.d
-cat > /etc/fail2ban/jail.d/reality-site.conf << 'F2BEOF'
+# 根据系统选择日志路径
+if [[ "$OS_ID" == "centos" || "$OS_ID" == "rhel" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" || "$OS_ID" == "fedora" ]]; then
+    SSH_LOG="/var/log/secure"
+    SYS_LOG="/var/log/messages"
+else
+    SSH_LOG="/var/log/auth.log"
+    SYS_LOG="/var/log/syslog"
+fi
+
+cat > /etc/fail2ban/jail.d/reality-site.conf << F2BEOF
 [nginx-http-auth]
 enabled = false
 
@@ -569,7 +654,7 @@ enabled = false
 enabled = true
 port = ssh
 filter = sshd
-logpath = /var/log/auth.log
+logpath = ${SSH_LOG}
 maxretry = 3
 bantime = 3600
 findtime = 600
@@ -577,7 +662,7 @@ findtime = 600
 [port-scan]
 enabled = true
 filter = port-scan
-logpath = /var/log/syslog
+logpath = ${SYS_LOG}
 maxretry = 3
 bantime = 86400
 findtime = 300
@@ -617,6 +702,7 @@ PROXY_NETS=(
     "45.56.0.0/17"                       # 扫描器
 )
 for net in "${PROXY_NETS[@]}"; do
+    iptables -D INPUT -s "$net" -j DROP 2>/dev/null || true
     iptables -I INPUT -s "$net" -j DROP 2>/dev/null || true
 done
 
@@ -624,6 +710,7 @@ done
 if command -v iptables-save &>/dev/null; then
     case "$OS_ID" in
         ubuntu|debian)
+            export DEBIAN_FRONTEND=noninteractive
             pkg_install iptables-persistent
             iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
             ;;
@@ -645,7 +732,27 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 cd "$DEPLOY_DIR"
-docker compose up -d 2>/dev/null || docker-compose up -d
+if [[ -z "$COMPOSE_CMD" ]]; then
+    info "安装 docker-compose-plugin..."
+    case "$OS_ID" in
+        ubuntu|debian)
+            apt-get update -y >/dev/null 2>&1
+            apt-get install -y docker-compose-plugin >/dev/null 2>&1 || true
+            ;;
+        centos|rhel|fedora|rocky|almalinux)
+            dnf install -y docker-compose-plugin >/dev/null 2>&1 || yum install -y docker-compose-plugin >/dev/null 2>&1 || true
+            ;;
+    esac
+    # 重新检测
+    if docker compose version &>/dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &>/dev/null; then
+        COMPOSE_CMD="docker-compose"
+    else
+        die "无法找到 Docker Compose，请手动安装"
+    fi
+fi
+$COMPOSE_CMD up -d
 
 # ==================== 步骤 8: 等待证书签发并验证 ====================
 info "[8/8] 等待 Caddy 自动签发 SSL 证书..."
@@ -661,12 +768,7 @@ for i in $(seq 1 30); do
         die "容器异常退出，请查看日志: docker logs $CONTAINER_NAME"
     fi
 
-    if docker exec "$CONTAINER_NAME" sh -c "netstat -tlnp 2>/dev/null | grep -q ':${PORT}'" 2>/dev/null; then
-        CERT_OK=true
-        break
-    fi
-
-    if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "certificate obtained successfully"; then
+    if docker logs "$CONTAINER_NAME" 2>&1 | grep -qiE "certificate obtained successfully|successfully obtained certificate"; then
         CERT_OK=true
         break
     fi

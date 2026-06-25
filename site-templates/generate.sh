@@ -6,6 +6,7 @@
 # ============================================================
 
 set -e
+umask 022
 
 # 检查参数
 OUTPUT_DIR="${1:-}"
@@ -13,6 +14,12 @@ TEMPLATE_NUM="${2:-}"
 
 if [ -z "$OUTPUT_DIR" ]; then
     echo "用法: $0 <输出目录> [模板编号1-4]"
+    exit 1
+fi
+
+# 验证输出目录路径
+if [[ "$OUTPUT_DIR" == *..* ]] || [[ "$OUTPUT_DIR" == "/" ]]; then
+    echo "错误: 输出目录路径不合法"
     exit 1
 fi
 
@@ -33,7 +40,7 @@ mkdir -p "$OUTPUT_DIR/posts"
 
 # 创建临时目录存放文章正文
 BODY_DIR=$(mktemp -d)
-trap "rm -rf $BODY_DIR" EXIT
+trap 'rm -rf "$BODY_DIR"' EXIT
 
 # ============================================================
 # 模板数据定义
@@ -44,6 +51,10 @@ _dates=()
 for _i in 0 1 2 3 4 5 6 7; do
     _offset=$(( 5 + _i * 18 ))  # 第1篇5天前，之后每篇间隔18天
     _d=$(date -d "-${_offset} days" +%Y-%m-%d 2>/dev/null || date -v-${_offset}d +%Y-%m-%d 2>/dev/null)
+    if [ -z "$_d" ]; then
+        echo "错误: 系统不支持日期计算，无法生成站点"
+        exit 1
+    fi
     _dates+=("$_d")
 done
 
@@ -2655,7 +2666,7 @@ INDEX_HEAD
         cat >> "$output_file" << ARTICLE_CARD
 
             <article class="article-card">
-                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" class="article-card-image" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('img-fallback')">
+                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" class="article-card-image" loading="lazy" onerror="if(!this._e){this._e=1;this.style.display='none';this.parentElement.classList.add('img-fallback')}">
                 <div class="article-card-body">
                     <h2><a href="posts/${slug}.html">${title}</a></h2>
                     <div class="article-meta">
@@ -2719,7 +2730,7 @@ $(generate_nav "关于")
     <main class="main-content">
         <div class="container">
             <div class="about-card">
-                <img src="https://picsum.photos/seed/avatar-${BLOGGER_NAME}/120/120" alt="${BLOGGER_NAME}" class="about-avatar" onerror="this.style.display='none'">
+                <img src="https://picsum.photos/seed/avatar-${BLOGGER_NAME}/120/120" alt="${BLOGGER_NAME}" class="about-avatar" onerror="if(!this._e){this._e=1;this.style.display='none'}">
                 <h2 class="about-name">${BLOGGER_NAME}</h2>
                 <p class="about-bio">${BLOGGER_BIO}</p>
 
@@ -2994,7 +3005,7 @@ FRIEND_HEAD
         IFS='|' read -r name url desc avatar <<< "$friend"
         cat >> "$output_file" << FRIEND_CARD
                 <div class="friend-card">
-                    <img src="${avatar}" alt="${name}" class="friend-avatar" loading="lazy" onerror="this.style.display='none'">
+                    <img src="${avatar}" alt="${name}" class="friend-avatar" loading="lazy" onerror="if(!this._e){this._e=1;this.style.display='none'}">
                     <div class="friend-info">
                         <h3><a href="${url}" target="_blank">${name}</a></h3>
                         <p>${desc}</p>
@@ -3104,7 +3115,7 @@ generate_posts() {
                     <span>&#x1F4C1; ${category}</span>
                     <span>&#x23F1; 约 ${read_time} 分钟</span>
                 </div>
-                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" style="width:100%;border-radius:var(--radius);margin-bottom:24px;" onerror="this.style.display='none'">
+                <img src="https://picsum.photos/seed/${slug}/800/400" alt="${title}" style="width:100%;border-radius:var(--radius);margin-bottom:24px;" onerror="if(!this._e){this._e=1;this.style.display='none'}">
 POST_HEAD
 
         # 在文章正文中插入图片（在第二个 </p> 后）
@@ -3305,18 +3316,18 @@ ATOM_ENTRY
 # ============================================================
 generate_css_file() {
     generate_css | \
-        sed "s/PRIMARY_COLOR_PLACEHOLDER/${PRIMARY_COLOR}/g" | \
-        sed "s/PRIMARY_LIGHT_PLACEHOLDER/${PRIMARY_LIGHT}/g" | \
-        sed "s/PRIMARY_DARK_PLACEHOLDER/${PRIMARY_DARK}/g" | \
-        sed "s/BG_COLOR_PLACEHOLDER/${BG_COLOR}/g" | \
-        sed "s/CARD_BG_PLACEHOLDER/${CARD_BG}/g" | \
-        sed "s/TEXT_COLOR_PLACEHOLDER/${TEXT_COLOR}/g" | \
-        sed "s/TEXT_SECONDARY_PLACEHOLDER/${TEXT_SECONDARY}/g" | \
-        sed "s/CODE_BG_PLACEHOLDER/${CODE_BG}/g" | \
-        sed "s/CODE_TEXT_PLACEHOLDER/${CODE_TEXT}/g" | \
-        sed "s/ACCENT_PLACEHOLDER/${ACCENT}/g" | \
-        sed "s/NAV_BG_PLACEHOLDER/${NAV_BG}/g" | \
-        sed "s/NAV_TEXT_PLACEHOLDER/${NAV_TEXT}/g" \
+        sed "s|PRIMARY_COLOR_PLACEHOLDER|${PRIMARY_COLOR}|g" | \
+    sed "s|PRIMARY_LIGHT_PLACEHOLDER|${PRIMARY_LIGHT}|g" | \
+    sed "s|PRIMARY_DARK_PLACEHOLDER|${PRIMARY_DARK}|g" | \
+    sed "s|BG_COLOR_PLACEHOLDER|${BG_COLOR}|g" | \
+    sed "s|CARD_BG_PLACEHOLDER|${CARD_BG}|g" | \
+    sed "s|TEXT_COLOR_PLACEHOLDER|${TEXT_COLOR}|g" | \
+    sed "s|TEXT_SECONDARY_PLACEHOLDER|${TEXT_SECONDARY}|g" | \
+    sed "s|CODE_BG_PLACEHOLDER|${CODE_BG}|g" | \
+    sed "s|CODE_TEXT_PLACEHOLDER|${CODE_TEXT}|g" | \
+    sed "s|ACCENT_PLACEHOLDER|${ACCENT}|g" | \
+    sed "s|NAV_BG_PLACEHOLDER|${NAV_BG}|g" | \
+    sed "s|NAV_TEXT_PLACEHOLDER|${NAV_TEXT}|g" \
         > "$OUTPUT_DIR/style.css"
 }
 
