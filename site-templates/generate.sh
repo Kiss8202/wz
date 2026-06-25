@@ -39,6 +39,14 @@ trap "rm -rf $BODY_DIR" EXIT
 # 模板数据定义
 # ============================================================
 
+# 动态生成文章日期（基于当前日期，每篇间隔 16-20 天）
+_dates=()
+for _i in 0 1 2 3 4 5 6 7; do
+    _offset=$(( 5 + _i * 18 ))  # 第1篇5天前，之后每篇间隔18天
+    _d=$(date -d "-${_offset} days" +%Y-%m-%d 2>/dev/null || date -v-${_offset}d +%Y-%m-%d 2>/dev/null)
+    _dates+=("$_d")
+done
+
 # 模板1: Go/Kubernetes/云原生 - 蓝色主题
 if [ "$TEMPLATE_NUM" -eq 1 ]; then
     BLOG_NAME="云原生笔记"
@@ -65,14 +73,14 @@ if [ "$TEMPLATE_NUM" -eq 1 ]; then
 
     # 文章元数据：标题|摘要|分类|标签|日期
     ARTICLES=(
-        "使用 Kubebuilder 开发自定义 Operator|Kubernetes 的 Operator 模式让我们可以像原生资源一样管理复杂应用。本文从零开始，使用 Kubebuilder 框架开发一个完整的自定义 Operator，包括 CRD 定义、Controller 逻辑和 Webhook 配置。|Kubernetes|Go Kubebuilder Operator CRD|2025-12-15"
-        "Go 语言并发模式：从 Pipeline 到 Worker Pool|Go 语言的 goroutine 和 channel 为并发编程提供了优雅的原语。本文深入探讨几种经典的并发模式，包括 Pipeline、Worker Pool、Fan-in/Fan-out，并结合实际场景给出最佳实践。|Go语言|Go 并发 goroutine channel|2025-11-28"
-        "Istio 流量治理实战：灰度发布与流量镜像|Istio 作为 Service Mesh 的事实标准，其流量治理能力是核心亮点。本文通过实际案例演示如何利用 VirtualService 和 DestinationRule 实现金丝雀发布和流量镜像。|云原生|Istio Service Mesh 灰度发布 流量镜像|2025-11-10"
-        "Prometheus 监控体系搭建：从指标采集到告警配置|一个完善的监控体系是保障服务稳定性的基石。本文详细介绍 Prometheus 的部署配置、自定义 Exporter 开发、PromQL 查询优化以及 AlertManager 告警规则编写。|DevOps|Prometheus 监控 告警 DevOps|2025-10-22"
-        "Docker 多阶段构建优化镜像体积|生产环境的容器镜像体积直接影响部署速度和安全性。本文介绍 Docker 多阶段构建的多种技巧，包括基础镜像选择、层缓存优化和安全加固。|容器技术|Docker 容器 镜像优化|2025-10-05"
-        "基于 ArgoCD 的 GitOps 持续交付实践|GitOps 正在成为云原生交付的标准模式。本文分享如何使用 ArgoCD 实现 Kubernetes 应用的声明式持续交付，包括多集群管理和 ApplicationSet 的高级用法。|DevOps|ArgoCD GitOps CI/CD|2025-09-18"
-        "深入理解 etcd：从 Raft 共识到实践调优|etcd 是 Kubernetes 的核心存储，理解其内部机制对集群稳定性至关重要。本文从 Raft 协议出发，分析 etcd 的读写流程、性能调优和运维最佳实践。|Kubernetes|etcd Raft Kubernetes 存储|2025-09-01"
-        "gRPC 在微服务通信中的最佳实践|微服务间的通信效率直接影响系统性能。本文对比 gRPC 与 REST 的优劣，分享 gRPC 在生产环境中的流控、超时、重试和负载均衡策略。|微服务|gRPC 微服务 负载均衡|2025-08-15"
+        "使用 Kubebuilder 开发自定义 Operator|Kubernetes 的 Operator 模式让我们可以像原生资源一样管理复杂应用。本文从零开始，使用 Kubebuilder 框架开发一个完整的自定义 Operator，包括 CRD 定义、Controller 逻辑和 Webhook 配置。|Kubernetes|Go Kubebuilder Operator CRD|${_dates[0]}"
+        "Go 语言并发模式：从 Pipeline 到 Worker Pool|Go 语言的 goroutine 和 channel 为并发编程提供了优雅的原语。本文深入探讨几种经典的并发模式，包括 Pipeline、Worker Pool、Fan-in/Fan-out，并结合实际场景给出最佳实践。|Go语言|Go 并发 goroutine channel|${_dates[1]}"
+        "Istio 流量治理实战：灰度发布与流量镜像|Istio 作为 Service Mesh 的事实标准，其流量治理能力是核心亮点。本文通过实际案例演示如何利用 VirtualService 和 DestinationRule 实现金丝雀发布和流量镜像。|云原生|Istio Service Mesh 灰度发布 流量镜像|${_dates[2]}"
+        "Prometheus 监控体系搭建：从指标采集到告警配置|一个完善的监控体系是保障服务稳定性的基石。本文详细介绍 Prometheus 的部署配置、自定义 Exporter 开发、PromQL 查询优化以及 AlertManager 告警规则编写。|DevOps|Prometheus 监控 告警 DevOps|${_dates[3]}"
+        "Docker 多阶段构建优化镜像体积|生产环境的容器镜像体积直接影响部署速度和安全性。本文介绍 Docker 多阶段构建的多种技巧，包括基础镜像选择、层缓存优化和安全加固。|容器技术|Docker 容器 镜像优化|${_dates[4]}"
+        "基于 ArgoCD 的 GitOps 持续交付实践|GitOps 正在成为云原生交付的标准模式。本文分享如何使用 ArgoCD 实现 Kubernetes 应用的声明式持续交付，包括多集群管理和 ApplicationSet 的高级用法。|DevOps|ArgoCD GitOps CI/CD|${_dates[5]}"
+        "深入理解 etcd：从 Raft 共识到实践调优|etcd 是 Kubernetes 的核心存储，理解其内部机制对集群稳定性至关重要。本文从 Raft 协议出发，分析 etcd 的读写流程、性能调优和运维最佳实践。|Kubernetes|etcd Raft Kubernetes 存储|${_dates[6]}"
+        "gRPC 在微服务通信中的最佳实践|微服务间的通信效率直接影响系统性能。本文对比 gRPC 与 REST 的优劣，分享 gRPC 在生产环境中的流控、超时、重试和负载均衡策略。|微服务|gRPC 微服务 负载均衡|${_dates[7]}"
     )
 
     ARTICLE_SLUGS=(
@@ -434,14 +442,14 @@ elif [ "$TEMPLATE_NUM" -eq 2 ]; then
     TAGS=("Python" "PyTorch" "Pandas" "Scikit-learn" "NLP" "Transformer" "CNN" "数据清洗" "特征工程" "模型调优" "Matplotlib" "Seaborn" "Spark" "SQL" "时间序列" "推荐系统" "异常检测" "A/B测试" "数据可视化" "MLOps")
 
     ARTICLES=(
-        "用 Transformer 构建中文文本分类模型|Transformer 架构在 NLP 领域的革命性影响已经无需多言。本文从零实现一个基于 Transformer 的中文文本分类模型，涵盖分词、词嵌入、多头注意力到分类头的完整流程。|自然语言处理|Python Transformer NLP 深度学习|2025-12-10"
-        "Pandas 高效数据清洗的 20 个技巧|数据清洗占据了数据分析 80% 的时间。本文总结了 20 个实用的 Pandas 数据清洗技巧，从缺失值处理到字符串规范化，帮你大幅提升数据预处理效率。|数据分析|Python Pandas 数据清洗|2025-11-25"
-        "PyTorch 实战：图像分割从入门到部署|图像分割是计算机视觉的核心任务之一。本文使用 PyTorch 实现 U-Net 分割模型，从数据增强到模型训练，再到 ONNX 导出和 TensorRT 部署，覆盖完整工程链路。|深度学习|PyTorch CNN 图像分割 部署|2025-11-08"
-        "特征工程的艺术：从业务理解到自动化|好的特征工程往往比模型选择更重要。本文结合金融风控场景，系统介绍特征工程的思路和方法，包括时序特征、交叉特征和自动化特征生成。|机器学习|特征工程 Scikit-learn 模型调优|2025-10-20"
-        "Matplotlib 与 Seaborn 数据可视化进阶|一图胜千言。本文深入 Matplotlib 和 Seaborn 的高级用法，包括自定义主题、多子图布局、动画可视化和交互式图表，让你的数据分析报告更专业。|数据可视化|Python Matplotlib Seaborn 数据可视化|2025-10-03"
-        "时间序列预测：从 ARIMA 到 Prophet|时间序列预测在业务决策中至关重要。本文对比传统统计方法和现代机器学习方法，详细介绍 ARIMA、Prophet 和 LSTM 在不同场景下的表现。|数据分析|时间序列 ARIMA Prophet Python|2025-09-15"
-        "推荐系统实战：协同过滤到深度学习|推荐系统是互联网产品的核心引擎。本文从经典的协同过滤出发，逐步过渡到基于深度学习的推荐模型，包括 Wide&Deep、DIN 和双塔模型。|机器学习|推荐系统 协同过滤 深度学习|2025-08-28"
-        "Spark 大规模数据处理最佳实践|当数据量超过单机处理能力时，Spark 是首选方案。本文分享 Spark 在生产环境中的调优经验，包括内存管理、数据倾斜处理和广播变量优化。|数据分析|Spark Python 大数据 性能调优|2025-08-10"
+        "用 Transformer 构建中文文本分类模型|Transformer 架构在 NLP 领域的革命性影响已经无需多言。本文从零实现一个基于 Transformer 的中文文本分类模型，涵盖分词、词嵌入、多头注意力到分类头的完整流程。|自然语言处理|Python Transformer NLP 深度学习|${_dates[0]}"
+        "Pandas 高效数据清洗的 20 个技巧|数据清洗占据了数据分析 80% 的时间。本文总结了 20 个实用的 Pandas 数据清洗技巧，从缺失值处理到字符串规范化，帮你大幅提升数据预处理效率。|数据分析|Python Pandas 数据清洗|${_dates[1]}"
+        "PyTorch 实战：图像分割从入门到部署|图像分割是计算机视觉的核心任务之一。本文使用 PyTorch 实现 U-Net 分割模型，从数据增强到模型训练，再到 ONNX 导出和 TensorRT 部署，覆盖完整工程链路。|深度学习|PyTorch CNN 图像分割 部署|${_dates[2]}"
+        "特征工程的艺术：从业务理解到自动化|好的特征工程往往比模型选择更重要。本文结合金融风控场景，系统介绍特征工程的思路和方法，包括时序特征、交叉特征和自动化特征生成。|机器学习|特征工程 Scikit-learn 模型调优|${_dates[3]}"
+        "Matplotlib 与 Seaborn 数据可视化进阶|一图胜千言。本文深入 Matplotlib 和 Seaborn 的高级用法，包括自定义主题、多子图布局、动画可视化和交互式图表，让你的数据分析报告更专业。|数据可视化|Python Matplotlib Seaborn 数据可视化|${_dates[4]}"
+        "时间序列预测：从 ARIMA 到 Prophet|时间序列预测在业务决策中至关重要。本文对比传统统计方法和现代机器学习方法，详细介绍 ARIMA、Prophet 和 LSTM 在不同场景下的表现。|数据分析|时间序列 ARIMA Prophet Python|${_dates[5]}"
+        "推荐系统实战：协同过滤到深度学习|推荐系统是互联网产品的核心引擎。本文从经典的协同过滤出发，逐步过渡到基于深度学习的推荐模型，包括 Wide&Deep、DIN 和双塔模型。|机器学习|推荐系统 协同过滤 深度学习|${_dates[6]}"
+        "Spark 大规模数据处理最佳实践|当数据量超过单机处理能力时，Spark 是首选方案。本文分享 Spark 在生产环境中的调优经验，包括内存管理、数据倾斜处理和广播变量优化。|数据分析|Spark Python 大数据 性能调优|${_dates[7]}"
     )
 
     ARTICLE_SLUGS=(
@@ -797,14 +805,14 @@ elif [ "$TEMPLATE_NUM" -eq 3 ]; then
     TAGS=("React" "TypeScript" "Next.js" "Tailwind" "Webpack" "Vite" "SSR" "Hooks" "Redux" "Zustand" "CSS" "动画" "性能优化" "PWA" "微前端" "Monorepo" "ESLint" "Vitest" "Storybook" "Figma")
 
     ARTICLES=(
-        "React 19 新特性深度解析|React 19 带来了期待已久的编译器、Server Components 和 Actions 等重磅特性。本文逐一解析这些新特性的设计动机和使用方式，帮助你快速上手。|React|React Server Components Hooks 编译器|2025-12-08"
-        "TypeScript 5.x 类型体操实战指南|TypeScript 的类型系统是图灵完备的，掌握高级类型技巧可以大幅提升代码的类型安全性。本文通过实际案例，深入条件类型、映射类型和模板字面量类型。|TypeScript|TypeScript 类型体操 条件类型|2025-11-22"
-        "Next.js App Router 架构设计与实践|Next.js 13 引入的 App Router 彻底改变了应用的组织方式。本文分享从 Pages Router 迁移到 App Router 的架构设计思路和踩坑记录。|React|Next.js App Router SSR 架构|2025-11-05"
-        "Tailwind CSS 实战：从抵触到真香|从最初的不理解到现在的深度使用，本文分享 Tailwind CSS 在大型项目中的实践经验，包括自定义设计系统、组件封装和性能优化。|CSS|Tailwind CSS 设计系统 组件化|2025-10-18"
-        "前端性能优化：从指标到实践|性能是用户体验的基石。本文系统梳理 Core Web Vitals 的优化策略，从 LCP、FID 到 CLS，每个指标都给出可落地的优化方案。|性能优化|性能优化 Core Web Vitals LCP|2025-10-01"
-        "Vite 插件开发：打造自己的构建工具链|Vite 的插件机制灵活而强大。本文从零开发一个 Vite 插件，深入理解 Rollup 插件兼容、HMR 更新和虚拟模块等核心概念。|前端工程化|Vite 插件 Rollup HMR|2025-09-12"
-        "微前端架构落地：Module Federation 实战|微前端让大型应用可以独立开发部署。本文基于 Webpack 5 的 Module Federation，分享微前端架构的落地方案和踩坑经验。|前端工程化|微前端 Module Federation 架构|2025-08-25"
-        "CSS 容器查询：响应式设计的新范式|容器查询让组件可以根据自身容器大小响应式调整，彻底改变了响应式设计的思路。本文全面介绍容器查询的语法和最佳实践。|CSS|CSS 容器查询 响应式 组件化|2025-08-08"
+        "React 19 新特性深度解析|React 19 带来了期待已久的编译器、Server Components 和 Actions 等重磅特性。本文逐一解析这些新特性的设计动机和使用方式，帮助你快速上手。|React|React Server Components Hooks 编译器|${_dates[0]}"
+        "TypeScript 5.x 类型体操实战指南|TypeScript 的类型系统是图灵完备的，掌握高级类型技巧可以大幅提升代码的类型安全性。本文通过实际案例，深入条件类型、映射类型和模板字面量类型。|TypeScript|TypeScript 类型体操 条件类型|${_dates[1]}"
+        "Next.js App Router 架构设计与实践|Next.js 13 引入的 App Router 彻底改变了应用的组织方式。本文分享从 Pages Router 迁移到 App Router 的架构设计思路和踩坑记录。|React|Next.js App Router SSR 架构|${_dates[2]}"
+        "Tailwind CSS 实战：从抵触到真香|从最初的不理解到现在的深度使用，本文分享 Tailwind CSS 在大型项目中的实践经验，包括自定义设计系统、组件封装和性能优化。|CSS|Tailwind CSS 设计系统 组件化|${_dates[3]}"
+        "前端性能优化：从指标到实践|性能是用户体验的基石。本文系统梳理 Core Web Vitals 的优化策略，从 LCP、FID 到 CLS，每个指标都给出可落地的优化方案。|性能优化|性能优化 Core Web Vitals LCP|${_dates[4]}"
+        "Vite 插件开发：打造自己的构建工具链|Vite 的插件机制灵活而强大。本文从零开发一个 Vite 插件，深入理解 Rollup 插件兼容、HMR 更新和虚拟模块等核心概念。|前端工程化|Vite 插件 Rollup HMR|${_dates[5]}"
+        "微前端架构落地：Module Federation 实战|微前端让大型应用可以独立开发部署。本文基于 Webpack 5 的 Module Federation，分享微前端架构的落地方案和踩坑经验。|前端工程化|微前端 Module Federation 架构|${_dates[6]}"
+        "CSS 容器查询：响应式设计的新范式|容器查询让组件可以根据自身容器大小响应式调整，彻底改变了响应式设计的思路。本文全面介绍容器查询的语法和最佳实践。|CSS|CSS 容器查询 响应式 组件化|${_dates[7]}"
     )
 
     ARTICLE_SLUGS=(
@@ -1284,14 +1292,14 @@ elif [ "$TEMPLATE_NUM" -eq 4 ]; then
     TAGS=("Rust" "内存安全" "零成本抽象" "嵌入式" "ARM" "RISC-V" "Linux" "内核" "eBPF" "WebAssembly" "WASM" "并发" "async" "FFI" "C互操作" "性能" "SIMD" "汇编" "驱动开发" "RTOS")
 
     ARTICLES=(
-        "Rust 异步运行时：从 Future 到 Tokio 的实现原理|Rust 的 async/await 语法糖背后是一套精巧的状态机转换机制。本文深入剖析 Future trait、Pin 机制和 Waker 唤醒链路，理解 Tokio 运行时的调度策略。|Rust|Rust async Future Tokio 运行时|2025-12-12"
-        "用 Rust 编写 Linux 内核模块|Linux 6.1 正式引入 Rust 支持，开启了内核开发的新纪元。本文手把手教你用 Rust 编写一个可加载的内核模块，包括内核 API 绑定和安全抽象。|Linux内核|Rust Linux 内核模块 驱动|2025-11-26"
-        "嵌入式 Rust：从零搭建 no_std 环境|在资源受限的微控制器上运行 Rust，需要理解 no_std 生态和底层配置。本文以 STM32 为例，从工具链搭建到外设驱动开发，完整走一遍嵌入式 Rust 开发流程。|嵌入式|Rust 嵌入式 no_std STM32|2025-11-08"
-        "Rust 与 C 的互操作：FFI 实战指南|在系统编程中，Rust 与 C 的互操作是不可避免的。本文详解 FFI 的安全封装模式，包括内存所有权传递、回调函数和复杂数据结构的跨语言边界处理。|系统编程|Rust FFI C互操作 内存安全|2025-10-21"
-        "WebAssembly 与 Rust：高性能 Web 运行时|WebAssembly 让 Rust 代码可以在浏览器中接近原生速度运行。本文分享用 Rust 开发 WASM 模块的经验，包括 wasm-bindgen、wasm-pack 和性能调优。|WebAssembly|Rust WebAssembly wasm-bindgen 性能|2025-10-04"
-        "深入 Rust 内存模型：从栈帧到堆分配|理解 Rust 的内存模型是写出高效代码的基础。本文从汇编层面分析栈帧布局、堆分配策略和自定义分配器的实现。|Rust|Rust 内存模型 栈帧 分配器|2025-09-16"
-        "eBPF 网络可观测性：用 Rust 编写高性能探针|eBPF 正在改变内核可观测性的方式。本文使用 Aya 框架用 Rust 编写 eBPF 程序，实现网络包过滤和延迟分析。|Linux内核|eBPF Rust Aya 网络可观测性|2025-08-29"
-        "Rust SIMD 编程：从手动向量化到便携式抽象|SIMD 指令可以大幅提升数据并行计算的吞吐量。本文从手写 intrinsics 到使用 std::simd，探索 Rust 中不同层次的 SIMD 编程方法。|性能优化|Rust SIMD 向量化 性能|2025-08-11"
+        "Rust 异步运行时：从 Future 到 Tokio 的实现原理|Rust 的 async/await 语法糖背后是一套精巧的状态机转换机制。本文深入剖析 Future trait、Pin 机制和 Waker 唤醒链路，理解 Tokio 运行时的调度策略。|Rust|Rust async Future Tokio 运行时|${_dates[0]}"
+        "用 Rust 编写 Linux 内核模块|Linux 6.1 正式引入 Rust 支持，开启了内核开发的新纪元。本文手把手教你用 Rust 编写一个可加载的内核模块，包括内核 API 绑定和安全抽象。|Linux内核|Rust Linux 内核模块 驱动|${_dates[1]}"
+        "嵌入式 Rust：从零搭建 no_std 环境|在资源受限的微控制器上运行 Rust，需要理解 no_std 生态和底层配置。本文以 STM32 为例，从工具链搭建到外设驱动开发，完整走一遍嵌入式 Rust 开发流程。|嵌入式|Rust 嵌入式 no_std STM32|${_dates[2]}"
+        "Rust 与 C 的互操作：FFI 实战指南|在系统编程中，Rust 与 C 的互操作是不可避免的。本文详解 FFI 的安全封装模式，包括内存所有权传递、回调函数和复杂数据结构的跨语言边界处理。|系统编程|Rust FFI C互操作 内存安全|${_dates[3]}"
+        "WebAssembly 与 Rust：高性能 Web 运行时|WebAssembly 让 Rust 代码可以在浏览器中接近原生速度运行。本文分享用 Rust 开发 WASM 模块的经验，包括 wasm-bindgen、wasm-pack 和性能调优。|WebAssembly|Rust WebAssembly wasm-bindgen 性能|${_dates[4]}"
+        "深入 Rust 内存模型：从栈帧到堆分配|理解 Rust 的内存模型是写出高效代码的基础。本文从汇编层面分析栈帧布局、堆分配策略和自定义分配器的实现。|Rust|Rust 内存模型 栈帧 分配器|${_dates[5]}"
+        "eBPF 网络可观测性：用 Rust 编写高性能探针|eBPF 正在改变内核可观测性的方式。本文使用 Aya 框架用 Rust 编写 eBPF 程序，实现网络包过滤和延迟分析。|Linux内核|eBPF Rust Aya 网络可观测性|${_dates[6]}"
+        "Rust SIMD 编程：从手动向量化到便携式抽象|SIMD 指令可以大幅提升数据并行计算的吞吐量。本文从手写 intrinsics 到使用 std::simd，探索 Rust 中不同层次的 SIMD 编程方法。|性能优化|Rust SIMD 向量化 性能|${_dates[7]}"
     )
 
     ARTICLE_SLUGS=(
