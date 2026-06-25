@@ -275,7 +275,7 @@ services:
     container_name: reality-site
     ports:
       - "80:80"
-      - "${OLD_PORT}:${OLD_PORT}"
+      - "127.0.0.1:${OLD_PORT}:${OLD_PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./site:/usr/share/caddy:ro
@@ -594,7 +594,7 @@ services:
     container_name: reality-site
     ports:
       - "80:80"
-      - "${PORT}:${PORT}"
+      - "127.0.0.1:${PORT}:${PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./site:/usr/share/caddy:ro
@@ -787,8 +787,8 @@ echo -e "${CYAN}╠════════════════════�
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     info "容器状态: ${GREEN}运行中${NC}"
     info "部署目录: $DEPLOY_DIR"
-    info "HTTPS 端口: ${PORT}"
-    info "访问地址: ${ACCESS_URL}"
+    info "HTTPS 端口: ${PORT}（仅本机监听，外部不可直连）"
+    info "网站访问: https://${DOMAIN}（通过 443/sing-box 回落）"
 
     if [[ "$CERT_OK" == "true" ]]; then
         info "SSL 证书: ${GREEN}已签发${NC}"
