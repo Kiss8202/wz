@@ -74,6 +74,19 @@ while getopts "d:e:p:m:uh" opt; do
     esac
 done
 
+# ==================== 操作系统检测 ====================
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS_ID="${ID:-unknown}"
+        OS_VERSION="${VERSION_ID:-}"
+    elif [[ -f /etc/redhat-release ]]; then
+        OS_ID="centos"
+    else
+        OS_ID="unknown"
+    fi
+}
+
 # ==================== 卸载逻辑 ====================
 uninstall() {
     detect_os
@@ -372,17 +385,6 @@ if [[ "$PORT" == "80" ]]; then
 fi
 
 # ==================== 检测操作系统 ====================
-detect_os() {
-    if [[ -f /etc/os-release ]]; then
-        . /etc/os-release
-        OS_ID="${ID:-unknown}"
-        OS_VERSION="${VERSION_ID:-}"
-    elif [[ -f /etc/redhat-release ]]; then
-        OS_ID="centos"
-    else
-        OS_ID="unknown"
-    fi
-}
 detect_os
 info "检测到系统: $OS_ID $OS_VERSION"
 
