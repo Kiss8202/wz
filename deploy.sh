@@ -594,26 +594,16 @@ systemctl enable fail2ban >/dev/null 2>&1 || true
 systemctl start fail2ban  >/dev/null 2>&1 || true
 info "fail2ban 已配置"
 
-# --- iptables 防扫描 + 防 SNI 滥用 ---
+# --- iptables 防扫描 ---
 info "配置 iptables 防扫描规则..."
 
-# 1. 通用防护：SYN Flood + 连接限制
-iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 20 -j DROP 2>/dev/null || true
-iptables -I INPUT -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j ACCEPT 2>/dev/null || true
-iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+# 1. 放行已建立的连接（必须放在最前面，避免后续规则误拦）
+iptables -I INPUT 1 -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+
+# 2. ICMP 限速（防 ping 洪水）
 iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT 2>/dev/null || true
 
-# 2. 防 SNI 滥用：限制 HTTPS 端口的 TLS 握手频率
-#    单个 IP 每分钟最多 15 次新连接到 HTTPS 端口，超过则丢弃
-#    正常浏览器访问不会触发，但 Reality 探测/滥用会频繁握手
-iptables -I INPUT -p tcp --dport "${PORT}" -m state --state NEW -m recent --set --name https_conn 2>/dev/null || true
-iptables -I INPUT -p tcp --dport "${PORT}" -m state --state NEW -m recent --rcheck --seconds 60 --hitcount 15 --name https_conn -j DROP 2>/dev/null || true
-
-# 3. 防 SNI 滥用：限制同一 IP 的并发 TLS 连接数
-#    正常浏览器最多 2-3 个并发，Reality 探测可能更多
-iptables -I INPUT -p tcp --dport "${PORT}" -m connlimit --connlimit-above 10 -j DROP 2>/dev/null || true
-
-# 4. 屏蔽已知的代理/VPN 出口 IP 段（常被用于 Reality 探测）
+# 3. 屏蔽已知的代理/VPN 出口 IP 段（常被用于 Reality 探测）
 PROXY_NETS=(
     # 数据中心 IP 段（非家用宽带，常用于 VPS 探测）
     "5.188.86.0/24" "5.45.0.0/16"      # 部分 VPN 出口
@@ -744,9 +734,6 @@ echo "  [2] SNI 过滤 - 非本域名请求返回 444 断开"
 echo "  [3] HSTS 预加载 - 浏览器强制 HTTPS"
 echo "  [4] iptables 屏蔽 Shodan/Censys/BinaryEdge/VPN 出口扫描器"
 echo "  [5] fail2ban 防端口扫描和 SSH 暴力破解"
-echo "  [6] 连接速率限制 - 防大规模端口扫描"
-echo "  [7] TLS 握手频率限制 - 单 IP 每分钟最多 15 次 HTTPS 新连接"
-echo "  [8] 并发连接限制 - 单 IP 最多 10 个并发 HTTPS 连接"
 echo ""
 warn "额外建议（脚本无法自动完成）:"
 echo "  [1] 修改 SSH 默认端口（22 → 其他）"
