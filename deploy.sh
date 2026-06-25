@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================
-#  Reality SNI 伪装站点一键部署脚本
+#  Reality SNI 伪装站点一键部署脚本 (NAT 容器版)
+#  使用 DNS-01 验证，不需要 80/443 端口
 #  支持: Ubuntu / Debian / CentOS / Fedora
 #  用法:
-#    bash deploy.sh -d <域名> -e <邮箱>           # 一键安装(默认443)
-#    bash deploy.sh -d <域名> -e <邮箱> -p 8443   # 指定端口
-#    bash deploy.sh -m <新域名>                     # 修改域名
-#    bash deploy.sh -u                              # 卸载
+#    bash deploy.sh -d <域名> -t <CF_Token>         # 一键安装
+#    bash deploy.sh -d <域名> -t <CF_Token> -p 8085  # 指定端口
+#    bash deploy.sh -m <新域名>                        # 修改域名
+#    bash deploy.sh -u                                 # 卸载
 # ============================================================
 set -euo pipefail
 
@@ -25,33 +26,45 @@ CONTAINER_NAME="reality-site"
 DOMAIN=""
 EMAIL=""
 PORT=""
+CF_TOKEN=""
 ACTION="install"
 NEW_DOMAIN=""
 
 # ==================== 解析参数 ====================
 usage() {
     cat <<EOF
-${BOLD}Reality SNI 伪装站点 一键部署脚本${NC}
+${BOLD}Reality SNI 伪装站点 一键部署脚本 (NAT 容器版)${NC}
+
+适用场景: NAT 容器机（80/443 端口不可用）
+证书验证: DNS-01（通过 Cloudflare API，无需开放任何端口）
 
 用法:
-  bash deploy.sh -d <域名> -e <邮箱>           # 一键安装(默认443)
-  bash deploy.sh -d <域名> -e <邮箱> -p 8443   # 指定端口
-  bash deploy.sh -m <新域名>                     # 修改域名
-  bash deploy.sh -u                              # 卸载
+  bash deploy.sh -d <域名> -t <CF_Token>         # 一键安装
+  bash deploy.sh -d <域名> -t <CF_Token> -p 8085  # 指定端口
+  bash deploy.sh -m <新域名>                        # 修改域名
+  bash deploy.sh -u                                 # 卸载
 
 选项:
-  -d  域名    你的完整域名 (例如 blog.example.com)
-  -e  邮箱    用于 Let's Encrypt 证书通知
-  -p  端口    HTTPS 端口 (默认 443，不影响证书自动续签)
-  -m  新域名  修改已部署站点的域名
-  -u          卸载已部署的站点
-  -h          显示帮助
+  -d  域名      你的完整域名 (例如 blog.example.com)
+  -t  CF Token  Cloudflare API Token (需要 DNS 编辑权限)
+  -e  邮箱      用于 Let's Encrypt 证书通知 (可选)
+  -p  端口      HTTPS 端口 (默认 443)
+  -m  新域名    修改已部署站点的域名
+  -u            卸载已部署的站点
+  -h            显示帮助
+
+Cloudflare API Token 获取:
+  1. 登录 https://dash.cloudflare.com/profile/api-tokens
+  2. 创建令牌 → 编辑区域 DNS (模板)
+  3. 区域资源 → 包含 → 你的域名
+  4. 复制生成的 Token
 EOF
 }
 
-while getopts "d:e:p:m:uh" opt; do
+while getopts "d:t:e:p:m:uh" opt; do
     case $opt in
         d) DOMAIN="$OPTARG" ;;
+        t) CF_TOKEN="$OPTARG" ;;
         e) EMAIL="$OPTARG" ;;
         p) PORT="$OPTARG" ;;
         m) NEW_DOMAIN="$OPTARG"; ACTION="modify" ;;
@@ -64,12 +77,18 @@ done
 # ==================== 卸载逻辑 ====================
 uninstall() {
     echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}  正在卸载 Reality 伪装站点...${NC}"
+    echo -e "${CYAN}  正在卸载 Reality 伪装站点 (NAT版)...${NC}"
     echo -e "${CYAN}========================================${NC}"
 
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         info "停止并移除容器..."
         docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
+    fi
+
+    # 删除自定义镜像
+    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "caddy-cloudflare:latest"; then
+        info "删除自定义 Caddy 镜像..."
+        docker rmi caddy-cloudflare:latest >/dev/null 2>&1 || true
     fi
 
     if [[ -d "$DEPLOY_DIR" ]]; then
@@ -88,16 +107,15 @@ uninstall() {
 # ==================== 修改域名逻辑 ====================
 modify_domain() {
     echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}  修改伪装站点域名${NC}"
+    echo -e "${CYAN}  修改伪装站点域名 (NAT版)${NC}"
     echo -e "${CYAN}========================================${NC}"
     echo ""
 
-    # 检查是否已部署
     if [[ ! -f "$DEPLOY_DIR/Caddyfile" ]]; then
-        die "未检测到已部署的站点，请先运行 bash deploy.sh -d <域名> -e <邮箱> 安装"
+        die "未检测到已部署的站点，请先安装"
     fi
 
-    # 获取当前域名（去掉端口部分）
+    # 获取当前域名
     local first_line
     first_line=$(head -1 "$DEPLOY_DIR/Caddyfile")
     OLD_DOMAIN=$(echo "$first_line" | sed 's/:[0-9]*$//' | sed 's/ {//')
@@ -105,32 +123,25 @@ modify_domain() {
         OLD_DOMAIN=$(echo "$first_line" | awk '{print $1}' | sed 's/:[0-9]*$//')
     fi
 
-    # 获取当前端口
     OLD_PORT=$(echo "$first_line" | grep -oP ':\K[0-9]+' | head -1 || true)
     [[ -z "$OLD_PORT" ]] && OLD_PORT="443"
 
-    # 交互式输入新域名
     if [[ -z "$NEW_DOMAIN" ]]; then
         info "当前域名: ${OLD_DOMAIN} (端口: ${OLD_PORT})"
         read -rp "请输入新域名: " NEW_DOMAIN
     fi
 
-    if [[ -z "$NEW_DOMAIN" ]]; then
-        die "新域名不能为空"
-    fi
+    if [[ -z "$NEW_DOMAIN" ]]; then die "新域名不能为空"; fi
+    if [[ "$NEW_DOMAIN" == "$OLD_DOMAIN" ]]; then die "新域名与当前域名相同"; fi
 
-    if [[ "$NEW_DOMAIN" == "$OLD_DOMAIN" ]]; then
-        die "新域名与当前域名相同"
-    fi
-
-    # 询问是否同时修改邮箱
-    OLD_EMAIL=$(grep -oP 'tls \K\S+' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 || true)
-    NEW_EMAIL="$OLD_EMAIL"
+    # 读取当前 CF Token
+    OLD_CF_TOKEN=$(grep -oP 'dns cloudflare \K\S+' "$DEPLOY_DIR/Caddyfile" 2>/dev/null | head -1 || true)
+    NEW_CF_TOKEN="$OLD_CF_TOKEN"
     echo ""
-    info "当前邮箱: ${OLD_EMAIL}"
-    read -rp "是否修改邮箱? 输入新邮箱或留空保持不变: " INPUT_EMAIL
-    if [[ -n "$INPUT_EMAIL" ]]; then
-        NEW_EMAIL="$INPUT_EMAIL"
+    info "当前 CF Token: ${OLD_CF_TOKEN:0:8}..."
+    read -rp "是否修改 CF Token? 输入新 Token 或留空保持不变: " INPUT_TOKEN
+    if [[ -n "$INPUT_TOKEN" ]]; then
+        NEW_CF_TOKEN="$INPUT_TOKEN"
     fi
 
     # 询问是否修改端口
@@ -144,7 +155,6 @@ modify_domain() {
     echo ""
     info "旧域名: ${OLD_DOMAIN}"
     info "新域名: ${NEW_DOMAIN}"
-    info "邮箱:   ${NEW_EMAIL}"
     info "端口:   ${OLD_PORT}"
     echo ""
     read -rp "确认修改? (y/N): " CONFIRM
@@ -156,9 +166,14 @@ modify_domain() {
     [[ "$OLD_PORT" != "443" ]] && site_addr="${NEW_DOMAIN}:${OLD_PORT}"
 
     cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
+{
+    acme_dns cloudflare ${NEW_CF_TOKEN}
+}
+
 ${site_addr} {
-    tls ${NEW_EMAIL} {
-        protocols tls1.2 tls1.3
+    tls {
+        dns cloudflare ${NEW_CF_TOKEN}
+        protocols tls1.3
         curves x25519
     }
     root * /usr/share/caddy
@@ -181,11 +196,6 @@ ${site_addr} {
         file_server
     }
 }
-
-:80 {
-    @notmyhost not host ${NEW_DOMAIN}
-    respond @notmyhost "" 444
-}
 CADDYEOF
 
     # 2. 替换站点文件中的旧域名
@@ -197,17 +207,17 @@ CADDYEOF
             -exec sed -i "s|__DOMAIN__|${NEW_DOMAIN}|g" {} + 2>/dev/null || true
     fi
 
-    # 3. 更新 docker-compose.yml 端口映射
+    # 3. 更新 docker-compose.yml
     info "更新 docker-compose.yml..."
     cat > "$DEPLOY_DIR/docker-compose.yml" <<COMPOSEEOF
 version: '3.8'
 
 services:
   caddy:
-    image: caddy:alpine
+    image: caddy-cloudflare:latest
+    build: .
     container_name: reality-site
     ports:
-      - "80:80"
       - "${OLD_PORT}:${OLD_PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -225,17 +235,17 @@ COMPOSEEOF
     info "清理旧证书数据..."
     docker volume rm reality-site_caddy_data >/dev/null 2>&1 || true
 
-    info "重启 Caddy 容器..."
+    info "重建并启动容器..."
     cd "$DEPLOY_DIR"
     docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
-    docker compose up -d 2>/dev/null || docker-compose up -d
+    docker compose up -d --build 2>/dev/null || docker-compose up -d --build
 
     # 5. 等待新证书签发
-    info "等待新域名 SSL 证书签发..."
+    info "等待新域名 SSL 证书签发 (DNS-01)..."
     echo -n "  "
 
     CERT_OK=false
-    for i in $(seq 1 30); do
+    for i in $(seq 1 45); do
         echo -n "."
         sleep 2
 
@@ -251,13 +261,12 @@ COMPOSEEOF
     done
     echo ""
 
-    # 6. 显示结果
     local access_url="https://${NEW_DOMAIN}"
     [[ "$OLD_PORT" != "443" ]] && access_url="https://${NEW_DOMAIN}:${OLD_PORT}"
 
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║          域名修改结果                            ║${NC}"
+    echo -e "${CYAN}║          域名修改结果 (NAT版)                    ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
     info "旧域名: ${OLD_DOMAIN}"
     info "新域名: ${NEW_DOMAIN}"
@@ -266,8 +275,8 @@ COMPOSEEOF
     if [[ "$CERT_OK" == "true" ]]; then
         info "SSL 证书: ${GREEN}已签发${NC}"
     else
-        warn "SSL 证书: ${YELLOW}签发中，请稍后访问验证${NC}"
-        warn "请确保新域名 DNS 已指向本机 IP"
+        warn "SSL 证书: ${YELLOW}签发中，DNS-01 验证较慢，请稍后检查${NC}"
+        echo "  查看日志: docker logs $CONTAINER_NAME"
     fi
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
 
@@ -281,40 +290,44 @@ if [[ $EUID -ne 0 ]]; then
     die "请使用 root 用户运行: sudo bash deploy.sh"
 fi
 
-# ==================== 交互式输入（如果未通过参数传入） ====================
+# ==================== 交互式输入 ====================
 echo -e "${CYAN}========================================${NC}"
 echo -e "${CYAN}  Reality SNI 伪装站点 一键部署${NC}"
+echo -e "${CYAN}  (NAT 容器版 - DNS-01 验证)${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
 if [[ -z "$DOMAIN" ]]; then
     read -rp "请输入你的域名 (例如 blog.example.com): " DOMAIN
 fi
+if [[ -z "$CF_TOKEN" ]]; then
+    echo ""
+    info "需要 Cloudflare API Token (DNS 编辑权限)"
+    info "获取方式: https://dash.cloudflare.com/profile/api-tokens"
+    echo ""
+    read -rp "请输入 CF API Token: " CF_TOKEN
+fi
 if [[ -z "$EMAIL" ]]; then
-    read -rp "请输入你的邮箱 (用于 Let's Encrypt 通知): " EMAIL
+    read -rp "请输入你的邮箱 (可选，用于 Let's Encrypt 通知): " EMAIL
 fi
 if [[ -z "$PORT" ]]; then
     echo ""
-    info "HTTPS 端口选择:"
-    echo "  443   - 默认，最自然（推荐，如 443 未被占用）"
-    echo "  8443  - 常用 HTTPS 备用端口"
-    echo "  2053  - Cloudflare 备用端口"
-    echo "  其他  - 自定义端口"
+    info "HTTPS 端口选择 (NAT 容器版):"
+    echo "  443   - 默认（需要 NAT 映射了 443 端口）"
+    echo "  8085  - 常用 NAT 映射端口"
+    echo "  其他  - 你的 NAT 映射端口"
     echo ""
     read -rp "请输入 HTTPS 端口 (留空默认 443): " PORT
     [[ -z "$PORT" ]] && PORT="443"
 fi
 
-if [[ -z "$DOMAIN" || -z "$EMAIL" ]]; then
-    die "域名和邮箱不能为空"
+if [[ -z "$DOMAIN" || -z "$CF_TOKEN" ]]; then
+    die "域名和 CF Token 不能为空"
 fi
 
 # 验证端口
 if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [[ "$PORT" -lt 1 || "$PORT" -gt 65535 ]]; then
     die "端口无效，请输入 1-65535 之间的数字"
-fi
-if [[ "$PORT" == "80" ]]; then
-    die "80 端口保留给 HTTP/ACME 证书验证，请选择其他端口"
 fi
 
 # ==================== 检测操作系统 ====================
@@ -349,21 +362,20 @@ pkg_install() {
 }
 
 # ==================== 步骤 1: 安装依赖 ====================
-info "[1/8] 安装基础依赖..."
+info "[1/7] 安装基础依赖..."
 pkg_install curl wget
 
 # ==================== 步骤 2: 安装 Docker ====================
 if ! command -v docker &>/dev/null; then
-    info "[2/8] 安装 Docker..."
+    info "[2/7] 安装 Docker..."
     curl -fsSL https://get.docker.com | bash
     systemctl enable docker >/dev/null 2>&1
     systemctl start docker  >/dev/null 2>&1
     info "Docker 安装完成"
 else
-    info "[2/8] Docker 已安装，跳过"
+    info "[2/7] Docker 已安装，跳过"
 fi
 
-# 确保 docker compose 可用
 if ! docker compose version &>/dev/null 2>&1; then
     info "安装 Docker Compose 插件..."
     case "$OS_ID" in
@@ -378,7 +390,7 @@ if ! docker compose version &>/dev/null 2>&1; then
 fi
 
 # ==================== 步骤 3: 检测端口占用 ====================
-info "[3/8] 检测端口..."
+info "[3/7] 检测端口..."
 check_port() {
     if ss -tlnp 2>/dev/null | grep -q ":${1} "; then
         local proc
@@ -389,47 +401,42 @@ check_port() {
     return 0
 }
 
-PORT_OK=true
-check_port 80   || PORT_OK=false
-check_port "$PORT" || PORT_OK=false
-
-if [[ "$PORT_OK" == "false" ]]; then
-    warn "检测到 80 或 ${PORT} 端口被占用，Caddy 可能无法启动"
+if ! check_port "$PORT"; then
+    warn "端口 ${PORT} 被占用，Caddy 可能无法启动"
     read -rp "是否继续? (y/N): " CONTINUE
     [[ "${CONTINUE,,}" != "y" ]] && die "用户取消"
 fi
 
-# ==================== 步骤 4: 配置防火墙 ====================
-info "[4/8] 配置防火墙..."
-if command -v ufw &>/dev/null; then
-    ufw allow 80/tcp      >/dev/null 2>&1 || true
-    ufw allow "${PORT}"/tcp >/dev/null 2>&1 || true
-    info "UFW 已放行 80/${PORT}"
-elif command -v firewall-cmd &>/dev/null; then
-    firewall-cmd --permanent --add-service=http  >/dev/null 2>&1 || true
-    firewall-cmd --permanent --add-port="${PORT}"/tcp >/dev/null 2>&1 || true
-    firewall-cmd --reload >/dev/null 2>&1 || true
-    info "firewalld 已放行 80/${PORT}"
-elif command -v iptables &>/dev/null; then
-    iptables -I INPUT -p tcp --dport 80      -j ACCEPT 2>/dev/null || true
-    iptables -I INPUT -p tcp --dport "${PORT}" -j ACCEPT 2>/dev/null || true
-    info "iptables 已放行 80/${PORT}"
-else
-    warn "未检测到防火墙，请确保云服务商安全组已放行 80/${PORT}"
-fi
-
-# ==================== 步骤 5: 生成配置文件 ====================
-info "[5/8] 生成配置文件..."
+# ==================== 步骤 4: 生成配置文件 ====================
+info "[4/7] 生成配置文件..."
 mkdir -p "$DEPLOY_DIR"
 
+# --- Dockerfile (含 Cloudflare DNS 插件) ---
+cat > "$DEPLOY_DIR/Dockerfile" <<'DOCKEREOF'
+FROM caddy:builder AS builder
+RUN xcaddy build --with github.com/caddy-dns/cloudflare
+FROM caddy:alpine
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+DOCKEREOF
+
 # --- Caddyfile ---
-# 443 端口不需要在域名后加端口，其他端口需要
 SITE_ADDR="${DOMAIN}"
 [[ "$PORT" != "443" ]] && SITE_ADDR="${DOMAIN}:${PORT}"
 
+# 邮箱可选，不填就不加 email 参数
+TLS_EXTRA=""
+if [[ -n "$EMAIL" ]]; then
+    TLS_EXTRA="issuer acme ${EMAIL}"
+fi
+
 cat > "$DEPLOY_DIR/Caddyfile" <<CADDYEOF
+{
+    acme_dns cloudflare ${CF_TOKEN}
+}
+
 ${SITE_ADDR} {
-    tls ${EMAIL} {
+    tls {
+        dns cloudflare ${CF_TOKEN}
         protocols tls1.3
         curves x25519
     }
@@ -453,21 +460,14 @@ ${SITE_ADDR} {
         file_server
     }
 }
-
-:80 {
-    @notmyhost not host ${DOMAIN}
-    respond @notmyhost "" 444
-}
 CADDYEOF
 
 # --- 生成站点文件 ---
 info "生成站点文件（随机模板）..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -f "$SCRIPT_DIR/site-templates/generate.sh" ]]; then
-    # 本地有模板生成器，直接用
     bash "$SCRIPT_DIR/site-templates/generate.sh" "$DEPLOY_DIR/site"
 else
-    # 从 GitHub Release 下载模板生成器
     info "下载站点模板生成器..."
     REPO_URL="https://github.com/Kiss8202/wz"
     GEN_URL="${REPO_URL}/releases/latest/download/generate.sh"
@@ -475,7 +475,6 @@ else
         bash /tmp/generate.sh "$DEPLOY_DIR/site"
         rm -f /tmp/generate.sh
     else
-        # 下载失败，尝试下载预生成的完整站点包
         info "下载预生成站点包..."
         RELEASE_URL="${REPO_URL}/releases/latest/download/reality-site.tar.gz"
         if curl -fSL --connect-timeout 10 --max-time 120 -o /tmp/reality-site.tar.gz "$RELEASE_URL" 2>/dev/null; then
@@ -500,10 +499,10 @@ version: '3.8'
 
 services:
   caddy:
-    image: caddy:alpine
+    image: caddy-cloudflare:latest
+    build: .
     container_name: reality-site
     ports:
-      - "80:80"
       - "${PORT}:${PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -517,26 +516,26 @@ volumes:
   caddy_config:
 COMPOSEEOF
 
-# ==================== 步骤 6: 防扫描加固 ====================
-info "[6/8] 配置防扫描规则..."
+# --- .env (保存敏感信息，不提交到 git) ---
+cat > "$DEPLOY_DIR/.env" <<ENVEOF
+DOMAIN=${DOMAIN}
+PORT=${PORT}
+CF_TOKEN=${CF_TOKEN}
+ENVEOF
+chmod 600 "$DEPLOY_DIR/.env"
 
-# --- 屏蔽已知扫描器 IP 段 ---
+# ==================== 步骤 5: 防扫描加固 ====================
+info "[5/7] 配置防扫描规则..."
+
+# 屏蔽已知扫描器 IP 段
 info "屏蔽 Shodan/Censys 等扫描器 IP..."
 SCAN_NETS=(
-    # Shodan
     "198.51.44.0/24" "71.6.165.0/24" "71.6.146.0/24" "66.240.192.0/18" "74.82.160.0/19"
     "104.248.0.0/16" "128.199.0.0/16" "138.68.0.0/16" "159.89.0.0/16"
-    "67.205.0.0/16" "68.183.0.0/16"
-    # Censys
     "162.142.148.0/24" "167.248.133.0/24" "192.35.168.0/23"
-    "2600:2001:2002:9300::/56"
-    # BinaryEdge
     "157.230.0.0/16" "167.71.0.0/16" "167.99.0.0/16"
-    # Shadowserver
     "184.105.247.0/24" "184.105.139.0/24" "216.218.185.0/24"
-    # Project Sonar (Rapid7)
     "71.6.128.0/17" "89.36.128.0/18" "185.42.12.0/24"
-    # Censys / Google Cloud 扫描
     "35.192.0.0/12" "35.208.0.0/14"
 )
 for net in "${SCAN_NETS[@]}"; do
@@ -544,13 +543,12 @@ for net in "${SCAN_NETS[@]}"; do
 done
 info "已屏蔽 ${#SCAN_NETS[@]} 个扫描器 IP 段"
 
-# --- 安装 fail2ban 防暴力扫描 ---
+# fail2ban
 if ! command -v fail2ban-server &>/dev/null; then
     info "安装 fail2ban..."
     pkg_install fail2ban
 fi
 
-# 创建 fail2ban jail 配置（兼容 Debian/CentOS）
 mkdir -p /etc/fail2ban/jail.d
 SSH_LOG="/var/log/auth.log"
 [[ -f /var/log/secure ]] && SSH_LOG="/var/log/secure"
@@ -576,7 +574,6 @@ bantime = 86400
 findtime = 300
 F2BEOF
 
-# 创建端口扫描过滤器（精确匹配内核日志格式）
 cat > /etc/fail2ban/filter.d/port-scan.conf << 'F2BEOF'
 [Definition]
 failregex = ^.*kernel:.*DROP.*SRC=<HOST>.*DPT=\d+.*$
@@ -586,43 +583,19 @@ F2BEOF
 
 systemctl enable fail2ban >/dev/null 2>&1 || true
 systemctl restart fail2ban >/dev/null 2>&1 || true
-info "fail2ban 已配置 (SSH防暴力 + 端口扫描检测)"
 
-# --- iptables 防扫描规则 ---
-info "配置 iptables 防扫描规则..."
-
-# 1. 连接跟踪优化（减少 conntrack 表溢出风险）
-sysctl -w net.netfilter.nf_conntrack_max=131072 >/dev/null 2>&1 || true
-sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=7200 >/dev/null 2>&1 || true
-
-# 2. 防 SYN Flood
+# iptables 防扫描
 iptables -N SYN_FLOOD 2>/dev/null || true
 iptables -F SYN_FLOOD 2>/dev/null || true
 iptables -A SYN_FLOOD -p tcp --syn -m limit --limit 10/s --limit-burst 20 -j RETURN 2>/dev/null || true
 iptables -A SYN_FLOOD -j DROP 2>/dev/null || true
 iptables -I INPUT -p tcp --syn -j SYN_FLOOD 2>/dev/null || true
-
-# 3. 单 IP 并发连接限制（防 CC / 暴力扫描）
 iptables -I INPUT -p tcp --syn -m connlimit --connlimit-above 30 --connlimit-mask 32 -j DROP 2>/dev/null || true
-
-# 4. 已建立连接放行
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
-
-# 5. ICMP 速率限制（防 ping 扫描）
 iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s --limit-burst 3 -j ACCEPT 2>/dev/null || true
 iptables -A INPUT -p icmp --icmp-type echo-request -j DROP 2>/dev/null || true
 
-# 6. 记录并丢弃非常用端口的扫描包（供 fail2ban 分析）
-iptables -N SCAN_LOG 2>/dev/null || true
-iptables -F SCAN_LOG 2>/dev/null || true
-iptables -A SCAN_LOG -m limit --limit 3/min -j LOG --log-prefix "DROP SCAN: " 2>/dev/null || true
-iptables -A SCAN_LOG -j DROP 2>/dev/null || true
-# 将非 80/${PORT}/SSH 端口的 NEW 连接记录
-SSH_PORT=$(grep -oP '^Port \K\d+' /etc/ssh/sshd_config 2>/dev/null | head -1 || true)
-[[ -z "$SSH_PORT" ]] && SSH_PORT="22"
-iptables -A INPUT -p tcp -m state --state NEW -m multiport ! --dports 80,${PORT},${SSH_PORT} -j SCAN_LOG 2>/dev/null || true
-
-# 保存 iptables 规则
+# 保存规则
 if command -v iptables-save &>/dev/null; then
     case "$OS_ID" in
         ubuntu|debian)
@@ -637,24 +610,26 @@ fi
 
 info "防扫描规则配置完成"
 
-# ==================== 步骤 7: 启动容器 ====================
-info "[7/8] 拉取 Caddy 镜像并启动..."
+# ==================== 步骤 6: 构建并启动容器 ====================
+info "[6/7] 构建自定义 Caddy 镜像 (含 Cloudflare DNS 插件)..."
 
-# 停止旧容器
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     info "检测到旧容器，正在替换..."
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
 fi
 
 cd "$DEPLOY_DIR"
+docker compose build 2>/dev/null || docker-compose build
 docker compose up -d 2>/dev/null || docker-compose up -d
 
-# ==================== 步骤 8: 等待证书签发并验证 ====================
-info "[8/8] 等待 Caddy 自动签发 SSL 证书..."
+# ==================== 步骤 7: 等待证书签发 ====================
+info "[7/7] 等待 SSL 证书签发 (DNS-01 验证)..."
+echo -n "  "
+warn "DNS-01 验证比 HTTP-01 慢，通常需要 1-3 分钟"
 echo -n "  "
 
 CERT_OK=false
-for i in $(seq 1 30); do
+for i in $(seq 1 45); do
     echo -n "."
     sleep 2
 
@@ -663,40 +638,44 @@ for i in $(seq 1 30); do
         die "容器异常退出，请查看日志: docker logs $CONTAINER_NAME"
     fi
 
-    if docker exec "$CONTAINER_NAME" sh -c "netstat -tlnp 2>/dev/null | grep -q ':${PORT}'" 2>/dev/null; then
+    if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "certificate obtained successfully"; then
         CERT_OK=true
         break
     fi
 
-    if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "certificate obtained successfully"; then
-        CERT_OK=true
-        break
+    # 检查是否有错误
+    if docker logs "$CONTAINER_NAME" 2>&1 | grep -qi "error.*dns"; then
+        echo ""
+        error "DNS-01 验证失败，请检查:"
+        echo "  1. CF Token 是否有 DNS 编辑权限"
+        echo "  2. 域名是否托管在 Cloudflare"
+        echo "  3. 查看详细日志: docker logs $CONTAINER_NAME"
+        exit 1
     fi
 done
 echo ""
 
 # ==================== 最终报告 ====================
-VPS_IP=$(curl -s4 --connect-timeout 3 ifconfig.me 2>/dev/null || curl -s4 --connect-timeout 3 icanhazip.com 2>/dev/null || echo "<你的VPS公网IP>")
-
 ACCESS_URL="https://${DOMAIN}"
 [[ "$PORT" != "443" ]] && ACCESS_URL="https://${DOMAIN}:${PORT}"
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║          部署结果                                ║${NC}"
+echo -e "${CYAN}║     部署结果 (NAT 容器版)                       ║${NC}"
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     info "容器状态: ${GREEN}运行中${NC}"
     info "部署目录: $DEPLOY_DIR"
     info "HTTPS 端口: ${PORT}"
+    info "证书验证: DNS-01 (Cloudflare API)"
     info "访问地址: ${ACCESS_URL}"
 
     if [[ "$CERT_OK" == "true" ]]; then
         info "SSL 证书: ${GREEN}已签发${NC}"
     else
-        warn "SSL 证书: ${YELLOW}签发中，请稍后访问验证${NC}"
-        warn "如果证书签发失败，请检查域名 DNS 是否已指向本机"
+        warn "SSL 证书: ${YELLOW}签发中，DNS-01 较慢，请稍后检查${NC}"
+        echo "  查看日志: docker logs $CONTAINER_NAME"
     fi
 else
     error "容器状态: ${RED}未运行${NC}"
@@ -704,20 +683,21 @@ else
 fi
 
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
-echo -e "${CYAN}║          DNS 配置提醒                            ║${NC}"
+echo -e "${CYAN}║     NAT 容器配置提醒                             ║${NC}"
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+warn "确保 NAT 容器已映射 ${PORT} 端口到外网"
 warn "Cloudflare DNS 设置:"
 warn "  类型: A"
 warn "  名称: ${DOMAIN%%.*}"
-warn "  IP:   ${VPS_IP}"
+warn "  IP:   NAT 容器的外网映射 IP"
 warn "  代理: 灰色云朵 (仅DNS，不开CDN)"
 echo ""
 info "SNI 伪装域名: ${DOMAIN}"
 if [[ "$PORT" != "443" ]]; then
     echo ""
     info "Reality handshake 配置参考:"
-    echo "  方式1 (远程握手): dest = \"${DOMAIN}:443\" (需 443 端口由其他服务监听)"
-    echo "  方式2 (本地握手): dest = \"127.0.0.1:${PORT}\" (Caddy 在本地 ${PORT} 端口)"
+    echo "  sing-box: handshake.server = \"${DOMAIN}\", handshake.server_port = 443"
+    echo "  (需 443 端口由其他服务监听，或用 127.0.0.1:${PORT})"
 fi
 echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -728,19 +708,10 @@ echo "  修改域名:   bash deploy.sh -m <新域名>"
 echo "  卸载站点:   bash deploy.sh -u"
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║             安全加固说明                        ║${NC}"
+echo -e "${CYAN}║     NAT 版与标准版的区别                         ║${NC}"
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
-info "已启用的安全措施:"
-echo "  [1] TLS 1.3 + X25519 强制加密"
-echo "  [2] SNI 过滤 - 非本域名请求返回 444 断开"
-echo "  [3] HSTS 预加载 - 浏览器强制 HTTPS"
-echo "  [4] iptables 屏蔽 Shodan/Censys/BinaryEdge 扫描器"
-echo "  [5] fail2ban 防端口扫描和 SSH 暴力破解"
-echo "  [6] 连接速率限制 - 防大规模端口扫描"
-echo ""
-warn "额外建议（脚本无法自动完成）:"
-echo "  [1] 修改 SSH 默认端口（22 → 其他）"
-echo "  [2] 禁用密码登录，仅用密钥认证"
-echo "  [3] 在 Cloudflare 关闭证书透明度日志（需付费）"
-echo "  [4] 定期检查: curl -s https://crt.sh/?q=${DOMAIN}"
+echo "  证书验证: DNS-01 (不需要 80/443 端口)"
+echo "  Caddy 镜像: 自定义构建 (含 Cloudflare DNS 插件)"
+echo "  额外依赖: Cloudflare API Token"
+echo "  证书续签: 自动 (通过 Cloudflare API)"
 echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
