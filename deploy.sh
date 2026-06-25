@@ -269,8 +269,6 @@ CADDYEOF
     # 3. 更新 docker-compose.yml 端口映射
     info "更新 docker-compose.yml..."
     cat > "$DEPLOY_DIR/docker-compose.yml" <<COMPOSEEOF
-version: '3.8'
-
 services:
   caddy:
     image: caddy:alpine
@@ -590,8 +588,6 @@ fi
 
 # --- docker-compose.yml ---
 cat > "$DEPLOY_DIR/docker-compose.yml" <<COMPOSEEOF
-version: '3.8'
-
 services:
   caddy:
     image: caddy:alpine
