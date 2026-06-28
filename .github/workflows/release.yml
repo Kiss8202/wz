@@ -33,7 +33,7 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
           body: |
-            Reality SNI 伪装站点一键部署脚本
+            Reality 自用脚本！
 
             一键部署：
             ```bash
